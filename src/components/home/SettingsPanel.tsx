@@ -1,7 +1,7 @@
 'use client';
 
 import { GameSettings, BatterSide } from '@/game/types';
-import { DIFFICULTY_CONFIGS, DIFFICULTY_ORDER } from '@/game/constants';
+import { DIFFICULTY_CONFIGS, DIFFICULTY_ORDER, FIELD_SIZE_CONFIGS, FIELD_SIZE_ORDER } from '@/game/constants';
 
 interface SettingsPanelProps {
   settings: GameSettings;
@@ -63,6 +63,54 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
             </button>
           ))}
         </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">
+          Field Size
+          <span className="ml-2 text-yellow-400 font-bold">
+            {FIELD_SIZE_CONFIGS[settings.fieldSize].label}
+          </span>
+          <span className="ml-1.5 text-gray-500 text-xs font-normal">
+            {FIELD_SIZE_CONFIGS[settings.fieldSize].distanceFt} ft
+          </span>
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {FIELD_SIZE_ORDER.map((fs) => {
+            const cfg = FIELD_SIZE_CONFIGS[fs];
+            return (
+              <button key={fs} onClick={() => onChange({ ...settings, fieldSize: fs })}
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
+                  settings.fieldSize === fs
+                    ? 'bg-yellow-500 text-gray-900 ring-2 ring-yellow-400/50'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                }`}>
+                {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+        <FieldSizeMeter level={FIELD_SIZE_ORDER.indexOf(settings.fieldSize)} total={FIELD_SIZE_ORDER.length} />
+      </div>
+    </div>
+  );
+}
+
+function FieldSizeMeter({ level, total }: { level: number; total: number }) {
+  const pct = (level / (total - 1)) * 100;
+  return (
+    <div className="mt-2">
+      <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{
+            width: `${Math.max(8, pct)}%`,
+            background: `linear-gradient(90deg, #60a5fa ${0}%, #3b82f6 ${50}%, #1d4ed8 ${100}%)`,
+          }}
+        />
+      </div>
+      <div className="flex justify-between mt-1 text-[10px] text-gray-600">
+        <span>Small</span>
+        <span>Large</span>
       </div>
     </div>
   );

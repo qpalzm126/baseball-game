@@ -16,17 +16,20 @@ import {
   FIELDER_HOTKEYS,
   FIELDER_LABELS,
   DEFAULT_INNINGS,
+  getScaledFielderDefaults,
 } from '@/game/constants';
+import type { FieldSize } from '@/game/types';
 
-function createFielders(): Fielder[] {
+function createFielders(fieldSize: FieldSize = 'professional'): Fielder[] {
   const positions = Object.values(FielderPosition);
+  const defaults = getScaledFielderDefaults(fieldSize);
   return positions.map((pos, idx) => ({
     id: idx + 1,
     position: pos,
     label: FIELDER_LABELS[pos],
     hotkey: FIELDER_HOTKEYS[pos],
-    location: { ...FIELDER_DEFAULTS[pos] },
-    defaultLocation: { ...FIELDER_DEFAULTS[pos] },
+    location: { ...defaults[pos] },
+    defaultLocation: { ...defaults[pos] },
     targetLocation: null,
     hasBall: false,
     isDiving: false,
@@ -115,7 +118,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   runners: [],
   fielders: createFielders(),
   ball: initialBallState(),
-  settings: { totalInnings: DEFAULT_INNINGS, difficulty: 'college', batterSide: 'right' },
+  settings: { totalInnings: DEFAULT_INNINGS, difficulty: 'college', batterSide: 'right', fieldSize: 'professional' },
   selectedPitch: null,
   speedBarValue: null,
   targetCell: null,
@@ -129,7 +132,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   practiceStrikesOnly: false,
   practiceTargetCell: null,
 
-  startGame: (settings) =>
+  startGame: (settings) => {
+    const merged = { ...get().settings, ...settings };
     set({
       phase: GamePhase.PrePitch,
       inning: { number: 1, isTop: true },
@@ -137,9 +141,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       score: { home: 0, away: 0 },
       outs: 0,
       runners: [],
-      fielders: createFielders(),
+      fielders: createFielders(merged.fieldSize),
       ball: initialBallState(),
-      settings: { ...get().settings, ...settings },
+      settings: merged,
       selectedPitch: null,
       speedBarValue: null,
       targetCell: null,
@@ -149,9 +153,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isPlayerBatting: true,
       gameStarted: true,
       practiceMode: false,
-    }),
+    });
+  },
 
-  startPractice: (settings) =>
+  startPractice: (settings) => {
+    const merged = { ...get().settings, ...settings };
     set({
       phase: GamePhase.PrePitch,
       inning: { number: 1, isTop: true },
@@ -159,9 +165,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       score: { home: 0, away: 0 },
       outs: 0,
       runners: [],
-      fielders: createFielders(),
+      fielders: createFielders(merged.fieldSize),
       ball: initialBallState(),
-      settings: { ...get().settings, ...settings },
+      settings: merged,
       selectedPitch: null,
       speedBarValue: null,
       targetCell: null,
@@ -171,9 +177,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isPlayerBatting: true,
       gameStarted: true,
       practiceMode: true,
-    }),
+    });
+  },
 
-  startPitchingPractice: (settings) =>
+  startPitchingPractice: (settings) => {
+    const merged = { ...get().settings, ...settings };
     set({
       phase: GamePhase.PrePitch,
       inning: { number: 1, isTop: true },
@@ -181,9 +189,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       score: { home: 0, away: 0 },
       outs: 0,
       runners: [],
-      fielders: createFielders(),
+      fielders: createFielders(merged.fieldSize),
       ball: initialBallState(),
-      settings: { ...get().settings, ...settings },
+      settings: merged,
       selectedPitch: null,
       speedBarValue: null,
       targetCell: null,
@@ -193,7 +201,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       isPlayerBatting: false,
       gameStarted: true,
       practiceMode: true,
-    }),
+    });
+  },
 
   setPracticePitchType: (type) => set({ practicePitchType: type }),
   setPracticeStrikesOnly: (v) => set({ practiceStrikesOnly: v }),
@@ -332,7 +341,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       runners: [],
       isPlayerBatting: !get().isPlayerBatting,
       phase: GamePhase.PrePitch,
-      fielders: createFielders(),
+      fielders: createFielders(get().settings.fieldSize),
       ball: initialBallState(),
       selectedPitch: null,
       speedBarValue: null,
@@ -344,7 +353,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   resetFielders: () =>
-    set({ fielders: createFielders() }),
+    set({ fielders: createFielders(get().settings.fieldSize) }),
 
   resetForNewPitch: () =>
     set({

@@ -2,18 +2,18 @@ import { Fielder, Vec2 } from './types';
 import { DIVE_DURATION, DIVE_COOLDOWN, DIVE_SPEED_MULTIPLIER, FIELDER_SPEED, HOME_PLATE } from './constants';
 import { moveToward, distance } from '@/utils/math';
 
-const WALL_RADIUS = 890;
+const DEFAULT_WALL_RADIUS = 890;
 
-function clampInsideWall(loc: Vec2): Vec2 {
+function clampInsideWall(loc: Vec2, wallRadius: number = DEFAULT_WALL_RADIUS): Vec2 {
   const dx = loc.x - HOME_PLATE.x;
   const dy = loc.y - HOME_PLATE.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist <= WALL_RADIUS) return loc;
-  const scale = WALL_RADIUS / dist;
+  if (dist <= wallRadius) return loc;
+  const scale = wallRadius / dist;
   return { x: HOME_PLATE.x + dx * scale, y: HOME_PLATE.y + dy * scale };
 }
 
-export function updateFielderMovement(fielder: Fielder, dt: number, now: number): Fielder {
+export function updateFielderMovement(fielder: Fielder, dt: number, now: number, wallRadius: number = DEFAULT_WALL_RADIUS): Fielder {
   let updated = { ...fielder };
 
   if (updated.isDiving && now > updated.diveEndTime) {
@@ -21,7 +21,7 @@ export function updateFielderMovement(fielder: Fielder, dt: number, now: number)
   }
 
   if (updated.targetLocation) {
-    updated.targetLocation = clampInsideWall(updated.targetLocation);
+    updated.targetLocation = clampInsideWall(updated.targetLocation, wallRadius);
     const speed = updated.isDiving
       ? updated.speed * DIVE_SPEED_MULTIPLIER
       : updated.speed;
@@ -31,7 +31,7 @@ export function updateFielderMovement(fielder: Fielder, dt: number, now: number)
     }
   }
 
-  updated.location = clampInsideWall(updated.location);
+  updated.location = clampInsideWall(updated.location, wallRadius);
   return updated;
 }
 

@@ -203,10 +203,27 @@ export interface DifficultyConfig {
   pitchBarSpeed: number;
   /** Breaking ball movement multiplier (1.0 = MLB realistic) */
   breakMultiplier: number;
+  /** Swing speed multiplier (higher = faster swing, higher exit velocity) */
+  swingSpeedMultiplier: number;
+}
+
+export type FieldSize = 'little_league' | 'middle_school' | 'high_school' | 'college' | 'professional';
+
+export interface FieldSizeConfig {
+  id: FieldSize;
+  label: string;
+  labelEn: string;
+  /** Center field distance in feet */
+  distanceFt: number;
+  /** Wall radius in game units */
+  wallRadiusGU: number;
+  /** Wall height in game units */
+  wallHeightGU: number;
 }
 
 export interface GameSettings {
   totalInnings: number;
   difficulty: Difficulty;
   batterSide: BatterSide;
+  fieldSize: FieldSize;
 }

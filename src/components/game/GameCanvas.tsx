@@ -54,6 +54,7 @@ import {
   SECOND_BASE,
   THIRD_BASE,
   DIFFICULTY_CONFIGS,
+  FIELD_SIZE_CONFIGS,
 } from '@/game/constants';
 import { project3Dto2D, distance } from '@/utils/math';
 
@@ -136,6 +137,15 @@ export default function GameCanvas() {
     sceneRef.current?.setBatterSide(store.settings.batterSide);
   }, [store.settings.batterSide]);
 
+  useEffect(() => {
+    const cfg = FIELD_SIZE_CONFIGS[store.settings.fieldSize];
+    sceneRef.current?.setFieldSize(cfg.wallRadiusGU, cfg.wallHeightGU);
+  }, [store.settings.fieldSize]);
+
+  function getFieldCfg() {
+    return FIELD_SIZE_CONFIGS[storeRef.current.settings.fieldSize];
+  }
+
   function showAnnouncement(text: string, duration: number = 1.0) {
     announcementRef.current = text;
     announcementTimerRef.current = duration;
@@ -190,7 +200,8 @@ export default function GameCanvas() {
         }
 
         if (!holdSwing && chargingRef.current) {
-          scene.startSwing(chargePowerRef.current);
+          const swingMul = DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty].swingSpeedMultiplier;
+          scene.startSwing(chargePowerRef.current, swingMul);
           hasSwungRef.current = true;
           chargingRef.current = false;
           scene.setChargeLevel(0);
@@ -278,6 +289,7 @@ export default function GameCanvas() {
       pitchStartRef.current.x, pitchStartRef.current.y, pitchStartRef.current.z,
       pitchEndRef.current.x, pitchEndRef.current.y, pitchEndRef.current.z,
       pitchBreakRef.current.x, pitchBreakRef.current.y,
+      pitchFlightSpeedRef.current,
     );
     const screenPos = scene.projectToGameCoords(p3d);
 
@@ -380,7 +392,8 @@ export default function GameCanvas() {
 
     const diffCfg = DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty];
     const diffBase = isAI ? diffCfg.pitchFlightBase : 2.2;
-    pitchFlightSpeedRef.current = diffBase * (0.7 + 0.3 * speed);
+    const pitchSpeedFactor = config.baseSpeed / 95;
+    pitchFlightSpeedRef.current = diffBase * (0.7 + 0.3 * speed) * pitchSpeedFactor;
 
     const brkMul = DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty].breakMultiplier;
     pitchBreakRef.current = { x: config.breakX * 0.02 * brkMul, y: config.breakY * 0.01 * brkMul };
@@ -421,6 +434,7 @@ export default function GameCanvas() {
         pitchStartRef.current.x, pitchStartRef.current.y, pitchStartRef.current.z,
         pitchEndRef.current.x, pitchEndRef.current.y, pitchEndRef.current.z,
         pitchBreakRef.current.x, pitchBreakRef.current.y,
+        pitchFlightSpeedRef.current,
       );
       const prevP = prevBall3DRef.current.clone();
       ball3DRef.current.copy(p3d);
@@ -481,6 +495,7 @@ export default function GameCanvas() {
       pitchStartRef.current.x, pitchStartRef.current.y, pitchStartRef.current.z,
       pitchEndRef.current.x, pitchEndRef.current.y, pitchEndRef.current.z,
       pitchBreakRef.current.x, pitchBreakRef.current.y,
+      pitchFlightSpeedRef.current,
     );
     ball3DRef.current.copy(p3d);
     pitchBallVelRef.current.copy(p3d.clone().sub(prevP).divideScalar(Math.max(dt, 0.001)));
@@ -517,7 +532,8 @@ export default function GameCanvas() {
         if (decision.shouldSwing && !scene.isSwinging()) {
           const acc = aiRef.current.getDifficultyConfig().aiSwingAccuracy;
           const aiPower = 0.5 + acc * 0.5 + (Math.random() - 0.5) * 0.2;
-          scene.startSwing(Math.max(0.3, Math.min(1, aiPower)));
+          const swingMul = DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty].swingSpeedMultiplier;
+          scene.startSwing(Math.max(0.3, Math.min(1, aiPower)), swingMul);
           hasSwungRef.current = true;
         }
         if (scene.isSwinging()) {
@@ -795,7 +811,8 @@ export default function GameCanvas() {
 
   function handleBallInPlay(s: ReturnType<typeof useGameStore.getState>, inp: ReturnType<InputManager['getState']>, dt: number, time: number) {
     if (!localBallRef.current) return;
-    localBallRef.current = fieldBallPhysics(localBallRef.current, dt);
+    const fc = getFieldCfg();
+    localBallRef.current = fieldBallPhysics(localBallRef.current, dt, fc.wallRadiusGU, fc.wallHeightGU);
 
     if (storeRef.current.practiceMode) {
       practiceTimerRef.current += dt;
@@ -905,7 +922,8 @@ export default function GameCanvas() {
     handleBaserunning(s, inp);
     updateAllFielderMovement(s, dt, time);
     if (localBallRef.current && localBallRef.current.heldByFielder === null) {
-      localBallRef.current = fieldBallPhysics(localBallRef.current, dt);
+      const fc = getFieldCfg();
+      localBallRef.current = fieldBallPhysics(localBallRef.current, dt, fc.wallRadiusGU, fc.wallHeightGU);
       const MAX_CATCH_Z = 15;
       for (const fielder of gs.fielders) {
         if (fielder.id === localBallRef.current.thrownByFielder) continue;
@@ -963,8 +981,9 @@ export default function GameCanvas() {
 
   function updateAllFielderMovement(s: ReturnType<typeof useGameStore.getState>, dt: number, time: number) {
     const gs = useGameStore.getState();
+    const fielderWall = getFieldCfg().wallRadiusGU - 10;
     for (const f of s.fielders) {
-      const u = updateFielderMovement(f, dt, time);
+      const u = updateFielderMovement(f, dt, time, fielderWall);
       if (u.location.x !== f.location.x || u.location.y !== f.location.y || u.isDiving !== f.isDiving) {
         gs.updateFielder(f.id, { location: u.location, isDiving: u.isDiving, targetLocation: u.targetLocation });
       }
@@ -1183,7 +1202,9 @@ export default function GameCanvas() {
     if (showTrajectory) {
       const cfg = PITCH_CONFIGS[s.selectedPitch!];
       const bm = DIFFICULTY_CONFIGS[s.settings.difficulty].breakMultiplier;
-      scene.updatePitchTrajectory(true, cfg.breakX * 0.02 * bm, cfg.breakY * 0.01 * bm);
+      const dc = DIFFICULTY_CONFIGS[s.settings.difficulty];
+      const estFlightSpeed = dc.pitchFlightBase * 0.85 * (cfg.baseSpeed / 95);
+      scene.updatePitchTrajectory(true, cfg.breakX * 0.02 * bm, cfg.breakY * 0.01 * bm, estFlightSpeed);
     } else {
       scene.updatePitchTrajectory(false, 0, 0);
     }
@@ -1198,6 +1219,7 @@ export default function GameCanvas() {
           pitchStartRef.current.x, pitchStartRef.current.y, pitchStartRef.current.z,
           pitchEndRef.current.x, pitchEndRef.current.y, pitchEndRef.current.z,
           pitchBreakRef.current.x, pitchBreakRef.current.y,
+          pitchFlightSpeedRef.current,
         );
         scene.updateBall3D(p3d, true);
       } else {
@@ -1218,6 +1240,8 @@ export default function GameCanvas() {
     const threeScene = new ThreeScene(container);
     sceneRef.current = threeScene;
     threeScene.setBatterSide(storeRef.current.settings.batterSide);
+    const initFieldCfg = FIELD_SIZE_CONFIGS[storeRef.current.settings.fieldSize];
+    threeScene.setFieldSize(initFieldCfg.wallRadiusGU, initFieldCfg.wallHeightGU);
     inputRef.current.attach(threeScene.getDomElement());
     gameLoopRef.current = new GameLoop(update, render);
     gameLoopRef.current.start();

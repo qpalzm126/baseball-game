@@ -91,7 +91,7 @@ export function calculatePhysicsHit(contact: PhysicsContact): PhysicsHitResult {
   const q = contact.contactQuality;
   const powerMul = 0.5 + 0.5 * contact.chargePower;
 
-  const exitSpeed = (batSpeed * 1.8 + pitchSpeed * 0.6) * (0.4 + 0.6 * q) * powerMul;
+  const exitSpeed = (batSpeed * 1.5 + pitchSpeed * 0.3) * (0.4 + 0.6 * q) * powerMul;
 
   const batDirX = batSpeed > 0.01 ? contact.batVelX / batSpeed : 0;
   const batDirY = batSpeed > 0.01 ? contact.batVelY / batSpeed : 0;
@@ -179,13 +179,18 @@ export function calculateHitResult(
 
 /* ======= wall constants ======= */
 
-const WALL_RADIUS = 900;
-const WALL_HEIGHT = 42;
+const DEFAULT_WALL_RADIUS = 900;
+const DEFAULT_WALL_HEIGHT = 42;
 const WALL_BOUNCE = 0.45;
 
 /* ======= fielding physics ======= */
 
-export function fieldBallPhysics(ball: BallState, dt: number): BallState {
+export function fieldBallPhysics(
+  ball: BallState,
+  dt: number,
+  wallRadius: number = DEFAULT_WALL_RADIUS,
+  wallHeight: number = DEFAULT_WALL_HEIGHT,
+): BallState {
   const step = dt * 60;
   let vx = ball.velocity3D.x;
   let vy = ball.velocity3D.y;
@@ -238,7 +243,7 @@ export function fieldBallPhysics(ball: BallState, dt: number): BallState {
   const dy = py - HOME_PLATE.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
-  if (dist >= WALL_RADIUS && pz <= WALL_HEIGHT) {
+  if (dist >= wallRadius && pz <= wallHeight) {
     const nx = dx / dist;
     const ny = dy / dist;
     const radialSpeed = vx * nx + vy * ny;
@@ -250,12 +255,12 @@ export function fieldBallPhysics(ball: BallState, dt: number): BallState {
       vy *= 0.75;
       vz *= 0.6;
 
-      px = HOME_PLATE.x + nx * (WALL_RADIUS - 2);
-      py = HOME_PLATE.y + ny * (WALL_RADIUS - 2);
+      px = HOME_PLATE.x + nx * (wallRadius - 2);
+      py = HOME_PLATE.y + ny * (wallRadius - 2);
     }
   }
 
-  const overWall = dist >= WALL_RADIUS && pz > WALL_HEIGHT;
+  const overWall = dist >= wallRadius && pz > wallHeight;
   return {
     ...ball,
     position3D: { x: px, y: py, z: pz },

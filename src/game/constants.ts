@@ -1,4 +1,4 @@
-import { Difficulty, DifficultyConfig, FielderPosition, PitchConfig, PitchType, Vec2 } from './types';
+import { Difficulty, DifficultyConfig, FielderPosition, FieldSize, FieldSizeConfig, PitchConfig, PitchType, Vec2 } from './types';
 
 export const CANVAS_WIDTH = 900;
 export const CANVAS_HEIGHT = 600;
@@ -154,6 +154,89 @@ export const FOUL_LINE_ANGLE = Math.PI / 4;
 export const DEFAULT_INNINGS = 3;
 
 /*
+ * Field sizes based on real-world baseball field dimensions:
+ *
+ * Level            | CF distance | Wall height | Reference
+ * -----------------|-------------|-------------|------------------------------
+ * Little League    | 200 ft      | 4 ft        | Ages 9-12, 60 ft basepaths
+ * Middle School    | 275 ft      | 6 ft        | Ages 13-14, 70-80 ft paths
+ * High School      | 330 ft      | 8 ft        | Standard HS, 90 ft paths
+ * College          | 370 ft      | 8 ft        | NCAA D1
+ * Professional     | 400 ft      | 10 ft       | MLB / pro stadiums
+ */
+export const FIELD_SIZE_CONFIGS: Record<FieldSize, FieldSizeConfig> = {
+  little_league: {
+    id: 'little_league',
+    label: '少棒場',
+    labelEn: 'Little League',
+    distanceFt: 200,
+    wallRadiusGU: 455,
+    wallHeightGU: 22,
+  },
+  middle_school: {
+    id: 'middle_school',
+    label: '青少棒場',
+    labelEn: 'Middle School',
+    distanceFt: 275,
+    wallRadiusGU: 625,
+    wallHeightGU: 30,
+  },
+  high_school: {
+    id: 'high_school',
+    label: '高中場',
+    labelEn: 'High School',
+    distanceFt: 330,
+    wallRadiusGU: 750,
+    wallHeightGU: 36,
+  },
+  college: {
+    id: 'college',
+    label: '大學場',
+    labelEn: 'College',
+    distanceFt: 370,
+    wallRadiusGU: 841,
+    wallHeightGU: 36,
+  },
+  professional: {
+    id: 'professional',
+    label: '職業場',
+    labelEn: 'Professional',
+    distanceFt: 400,
+    wallRadiusGU: 900,
+    wallHeightGU: 42,
+  },
+};
+
+export const FIELD_SIZE_ORDER: FieldSize[] = [
+  'little_league', 'middle_school', 'high_school', 'college', 'professional',
+];
+
+const PRO_WALL_RADIUS = 900;
+
+export function getScaledFielderDefaults(fieldSize: FieldSize): Record<FielderPosition, Vec2> {
+  const ratio = FIELD_SIZE_CONFIGS[fieldSize].wallRadiusGU / PRO_WALL_RADIUS;
+  const hp = HOME_PLATE;
+  const base = FIELDER_DEFAULTS;
+  const result = {} as Record<FielderPosition, Vec2>;
+  for (const pos of Object.values(FielderPosition)) {
+    const def = base[pos];
+    const isOutfielder =
+      pos === FielderPosition.LeftField ||
+      pos === FielderPosition.CenterField ||
+      pos === FielderPosition.RightField;
+    if (isOutfielder) {
+      result[pos] = {
+        x: hp.x + (def.x - hp.x) * ratio,
+        y: hp.y + (def.y - hp.y) * ratio,
+      };
+    } else {
+      result[pos] = { ...def };
+    }
+  }
+  return result;
+}
+
+/*
  * Difficulty tiers — pitch flight times are tuned to approximate real-world
  * reaction windows at each competitive level. The pitchFlightBase controls
  * how fast progress 0→1 advances; flight time ≈ 1 / (pitchFlightBase * speedFactor).
@@ -185,6 +268,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     chargeCycleDuration: 0.60,
     pitchBarSpeed: 0.8,
     breakMultiplier: 0.35,
+    swingSpeedMultiplier: 0.70,
   },
   middle: {
     id: 'middle',
@@ -201,6 +285,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     chargeCycleDuration: 0.50,
     pitchBarSpeed: 1.0,
     breakMultiplier: 0.50,
+    swingSpeedMultiplier: 0.78,
   },
   high: {
     id: 'high',
@@ -217,6 +302,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     chargeCycleDuration: 0.42,
     pitchBarSpeed: 1.3,
     breakMultiplier: 0.65,
+    swingSpeedMultiplier: 0.86,
   },
   college: {
     id: 'college',
@@ -233,6 +319,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     chargeCycleDuration: 0.36,
     pitchBarSpeed: 1.6,
     breakMultiplier: 0.80,
+    swingSpeedMultiplier: 0.92,
   },
   youth: {
     id: 'youth',
@@ -249,6 +336,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     chargeCycleDuration: 0.30,
     pitchBarSpeed: 2.0,
     breakMultiplier: 0.90,
+    swingSpeedMultiplier: 0.96,
   },
   cpbl: {
     id: 'cpbl',
@@ -265,6 +353,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     chargeCycleDuration: 0.26,
     pitchBarSpeed: 2.5,
     breakMultiplier: 0.95,
+    swingSpeedMultiplier: 1.00,
   },
   mlb: {
     id: 'mlb',
@@ -281,6 +370,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     chargeCycleDuration: 0.22,
     pitchBarSpeed: 3.0,
     breakMultiplier: 1.0,
+    swingSpeedMultiplier: 1.05,
   },
   alien: {
     id: 'alien',
@@ -297,6 +387,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     chargeCycleDuration: 0.16,
     pitchBarSpeed: 4.0,
     breakMultiplier: 1.4,
+    swingSpeedMultiplier: 1.15,
   },
 };
 

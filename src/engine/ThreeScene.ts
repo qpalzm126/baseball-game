@@ -286,6 +286,11 @@ export class ThreeScene {
   private pitchTrajectoryLine: THREE.Line | null = null;
   private readonly TRAJ_SEGS = 50;
 
+  /* field wall */
+  private wallMesh: THREE.Mesh | null = null;
+  private wallRadiusTH = 32;
+  private wallHeightTH = 1.5;
+
   /* fielding */
   private fielderModels = new Map<number, { model: JointedPlayer; label: THREE.Sprite; hotkey: THREE.Sprite }>();
   private runnerMeshes = new Map<string, JointedPlayer>();
@@ -475,8 +480,19 @@ export class ThreeScene {
     drawBox(-0.55, defZ);
     drawBox(0.55, defZ);
 
-    const wallR = 32;
-    const wallH = 1.5;
+    this.buildWall(hp);
+  }
+
+  private buildWall(hp: { x: number; z: number }) {
+    if (this.wallMesh) {
+      this.fieldGroup.remove(this.wallMesh);
+      this.wallMesh.geometry.dispose();
+      (this.wallMesh.material as THREE.Material).dispose();
+      this.wallMesh = null;
+    }
+
+    const wallR = this.wallRadiusTH;
+    const wallH = this.wallHeightTH;
     const wallThick = 0.15;
     const arcStart = -Math.PI / 4 - 0.15;
     const arcEnd = Math.PI / 4 + 0.15;
@@ -507,10 +523,19 @@ export class ThreeScene {
     wallGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     wallGeo.setIndex(indices);
     wallGeo.computeVertexNormals();
-    const wallMesh = new THREE.Mesh(wallGeo, wallMat);
-    wallMesh.castShadow = true;
-    wallMesh.receiveShadow = true;
-    fg.add(wallMesh);
+    const mesh = new THREE.Mesh(wallGeo, wallMat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.fieldGroup.add(mesh);
+    this.wallMesh = mesh;
+  }
+
+  setFieldSize(wallRadiusGU: number, wallHeightGU: number) {
+    const G2T = 1 / 28;
+    this.wallRadiusTH = wallRadiusGU * G2T;
+    this.wallHeightTH = wallHeightGU * G2T;
+    const hp = { x: 0, z: 0.6 };
+    this.buildWall(hp);
   }
 
   private buildStrikeZone() {
@@ -836,7 +861,7 @@ export class ThreeScene {
     this.battingGroup.add(this.pitchTrajectoryLine);
   }
 
-  updatePitchTrajectory(visible: boolean, breakXAmt: number, breakYAmt: number) {
+  updatePitchTrajectory(visible: boolean, breakXAmt: number, breakYAmt: number, pitchFlightSpeed = 2.2) {
     if (!this.pitchTrajectoryLine) return;
     this.pitchTrajectoryLine.visible = visible && this.currentMode === 'batting';
     if (!this.pitchTrajectoryLine.visible) return;
@@ -846,13 +871,17 @@ export class ThreeScene {
     const endY = this.pitchAimTarget.y;
     const endZ = 0;
 
+    const flightTime = 1.0 / Math.max(pitchFlightSpeed, 0.5);
+    const PITCH_G = 5.0;
+
     const posAttr = this.pitchTrajectoryLine.geometry.getAttribute('position') as THREE.BufferAttribute;
     const colAttr = this.pitchTrajectoryLine.geometry.getAttribute('color') as THREE.BufferAttribute;
     const n = this.TRAJ_SEGS;
     for (let i = 0; i <= n; i++) {
       const t = i / n;
+      const gravityArc = 0.5 * PITCH_G * flightTime * flightTime * t * (1 - t);
       const x = lerp(startX, endX, t) + Math.sin(t * Math.PI) * breakXAmt;
-      const y = lerp(startY, endY, t) + Math.sin(t * Math.PI) * breakYAmt * 0.5;
+      const y = lerp(startY, endY, t) + Math.sin(t * Math.PI) * breakYAmt * 0.5 + gravityArc;
       const z = lerp(startZ, endZ, t);
       posAttr.setXYZ(i, x, y, z);
       const bright = 0.4 + 0.6 * t;
@@ -1091,9 +1120,9 @@ export class ThreeScene {
 
   /* --------- swing animation --------- */
 
-  startSwing(chargePower = 1) {
+  startSwing(chargePower = 1, swingSpeedMul = 1) {
     if (this.swingT >= 0) return;
-    this.swingDur = SWING_DURATION * lerp(1.5, 1.0, Math.max(0, Math.min(1, chargePower)));
+    this.swingDur = (SWING_DURATION / Math.max(0.5, swingSpeedMul)) * lerp(1.5, 1.0, Math.max(0, Math.min(1, chargePower)));
     this.swingT = 0;
     if (this.batPivot.parent) this.batPivot.parent.remove(this.batPivot);
     this.battingGroup.add(this.batPivot);
@@ -1196,11 +1225,15 @@ export class ThreeScene {
   /* --------- 3D pitch ball position --------- */
 
   getPitchBallPos(progress: number, startX: number, startY: number, startZ: number,
-    endX: number, endY: number, endZ: number, breakXAmt: number, breakYAmt: number): THREE.Vector3 {
+    endX: number, endY: number, endZ: number, breakXAmt: number, breakYAmt: number,
+    pitchFlightSpeed = 2.2): THREE.Vector3 {
     const t = progress;
+    const flightTime = 1.0 / Math.max(pitchFlightSpeed, 0.5);
+    const PITCH_G = 5.0;
+    const gravityArc = 0.5 * PITCH_G * flightTime * flightTime * t * (1 - t);
     return new THREE.Vector3(
       lerp(startX, endX, t) + Math.sin(t * Math.PI) * breakXAmt,
-      lerp(startY, endY, t) + Math.sin(t * Math.PI) * breakYAmt * 0.5,
+      lerp(startY, endY, t) + Math.sin(t * Math.PI) * breakYAmt * 0.5 + gravityArc,
       lerp(startZ, endZ, t),
     );
   }

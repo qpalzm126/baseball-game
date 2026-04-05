@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/store/gameStore';
-import { PitchType, Difficulty } from '@/game/types';
-import { DIFFICULTY_CONFIGS, DIFFICULTY_ORDER, PITCH_CONFIGS } from '@/game/constants';
+import { PitchType, Difficulty, FieldSize } from '@/game/types';
+import { DIFFICULTY_CONFIGS, DIFFICULTY_ORDER, PITCH_CONFIGS, FIELD_SIZE_CONFIGS, FIELD_SIZE_ORDER } from '@/game/constants';
 import GameCanvas from '@/components/game/GameCanvas';
 
 const PITCH_OPTIONS: { value: PitchType | null; label: string }[] = [
@@ -19,6 +19,7 @@ export default function PracticePage() {
   const gameStarted = useGameStore((s) => s.gameStarted);
   const practiceMode = useGameStore((s) => s.practiceMode);
   const currentDifficulty = useGameStore((s) => s.settings.difficulty);
+  const currentFieldSize = useGameStore((s) => s.settings.fieldSize);
   const practicePitchType = useGameStore((s) => s.practicePitchType);
   const practiceStrikesOnly = useGameStore((s) => s.practiceStrikesOnly);
   const practiceTargetCell = useGameStore((s) => s.practiceTargetCell);
@@ -48,6 +49,10 @@ export default function PracticePage() {
 
   const handleDifficulty = (d: Difficulty) => {
     useGameStore.getState().updateSettings({ difficulty: d });
+  };
+
+  const handleFieldSize = (fs: FieldSize) => {
+    useGameStore.getState().updateSettings({ fieldSize: fs });
   };
 
   const handlePitchType = (type: PitchType | null) => {
@@ -116,6 +121,27 @@ export default function PracticePage() {
                   }`}
                 >
                   {DIFFICULTY_CONFIGS[d].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="w-px h-5 bg-gray-700" />
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Field</span>
+            <div className="flex gap-1">
+              {FIELD_SIZE_ORDER.map((fs) => (
+                <button
+                  key={fs}
+                  onClick={() => handleFieldSize(fs)}
+                  className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
+                    currentFieldSize === fs
+                      ? 'bg-blue-500 text-gray-900'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {FIELD_SIZE_CONFIGS[fs].label}
                 </button>
               ))}
             </div>

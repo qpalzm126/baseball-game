@@ -17,6 +17,7 @@ export default function MainMenu() {
     totalInnings: DEFAULT_INNINGS,
     difficulty: "college",
     batterSide: "right",
+    fieldSize: "professional",
   });
 
   const startPractice = useGameStore((s) => s.startPractice);
