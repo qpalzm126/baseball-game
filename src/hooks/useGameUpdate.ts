@@ -927,7 +927,15 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   /* --- ball in play / fielding --- */
 
   function handleBallInPlay(s: ReturnType<typeof useGameStore.getState>, inp: ReturnType<InputManager['getState']>, dt: number, time: number) {
-    if (!localBallRef.current) return;
+    if (!localBallRef.current) {
+      const gs = useGameStore.getState();
+      if (gs.runners.length === 0) {
+        if (storeRef.current.practiceMode) { goToPrePitch(); return; }
+        phaseTimerRef.current += dt;
+        if (phaseTimerRef.current > 2.0) { goToPrePitch(); gs.resetFielders(); }
+      }
+      return;
+    }
     const fc = getFieldCfg();
     localBallRef.current = fieldBallPhysics(localBallRef.current, dt, fc.wallRadiusGU, fc.wallHeightGU);
 
@@ -953,17 +961,20 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     if (localBallRef.current.hitWall) {
       hitTypeRef.current = HitType.HomeRun;
       showAnnouncement('HOME RUN!', 2.5);
+      sceneRef.current?.hideBall();
+      localBallRef.current = null;
       const gs = useGameStore.getState();
       for (const runner of gs.runners) {
         gs.updateRunner(runner.id, { targetBase: BaseType.Home });
       }
-      localBallRef.current = { ...localBallRef.current, hitWall: false };
       return;
     }
 
     if (localBallRef.current.bounceOverWall) {
       hitTypeRef.current = HitType.LineDrive;
       showAnnouncement('GROUND RULE DOUBLE!', 2.0);
+      sceneRef.current?.hideBall();
+      localBallRef.current = null;
       const gs = useGameStore.getState();
       for (const runner of gs.runners) {
         const cur = runner.currentBase;
@@ -973,7 +984,6 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         else target = BaseType.Second;
         gs.updateRunner(runner.id, { targetBase: target });
       }
-      localBallRef.current = { ...localBallRef.current, bounceOverWall: false };
       return;
     }
 
@@ -997,6 +1007,18 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         if (hitTypeRef.current && checkFlyOut(hitTypeRef.current, !ball.isLanded)) {
           gs.updateFielder(fielder.id, { hasBall: true });
           localBallRef.current = { ...ball, heldByFielder: fielder.id, thrownByFielder: null, velocity3D: { x: 0, y: 0, z: 0 } };
+
+          const batterRunner = gs.runners.find((r) => r.startBase === 0);
+          if (batterRunner) {
+            gs.removeRunner(batterRunner.id);
+            sceneRef.current?.removeRunner(batterRunner.id);
+          }
+          for (const r of gs.runners) {
+            if (r.startBase !== 0) {
+              gs.updateRunner(r.id, { targetBase: r.startBase as BaseType });
+            }
+          }
+
           const newOuts = gs.outs + 1;
           showAnnouncement(`CAUGHT! OUT!  ${outCountText(newOuts)}`, 1.2);
           gs.recordOut();

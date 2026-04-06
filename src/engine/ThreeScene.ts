@@ -856,7 +856,7 @@ export class ThreeScene {
   }
 
   private getMaxReachX(): number {
-    const pivotZ = this.batter.root.position.z - 0.15;
+    const pivotZ = this.batter.root.position.z - 0.12;
     const rSq = BAT_LENGTH * BAT_LENGTH - pivotZ * pivotZ;
     return rSq > 0 ? Math.sqrt(rSq) : 0;
   }
@@ -912,7 +912,7 @@ export class ThreeScene {
 
   private getReachLimits(): { front: number; behind: number } {
     const maxReachX = this.getMaxReachX();
-    return { front: maxReachX, behind: maxReachX * 0.3 };
+    return { front: maxReachX, behind: maxReachX * 0.50 };
   }
 
   setSweetSpotFromCursor(normX: number, normY: number) {
@@ -1467,7 +1467,7 @@ export class ThreeScene {
     const bx = this.batter.root.position.x;
     const bz = this.batter.root.position.z;
     const batY = lerp(BAT_Y_LOW, BAT_Y_HIGH, this.batHeightNorm);
-    this.batPivot.position.set(bx, batY, bz - 0.15);
+    this.batPivot.position.set(bx, batY, bz - 0.12);
     this.bat.group.rotation.set(Math.PI / 2, 0, 0);
     this.batPivot.rotation.set(0, 0, 0);
 
@@ -1499,7 +1499,8 @@ export class ThreeScene {
     const rawTilt = (0.5 - this.batHeightNorm) * 0.40;
     const heightTilt = Math.max(-0.25, Math.min(0.25, rawTilt));
     this.batPivot.rotation.set(0, sign * angle, 0);
-    this.bat.group.rotation.set(Math.PI / 2 + baseTilt + heightTilt, 0, 0);
+    const diag = sign * lerp(0.14, 0.04, t);
+    this.bat.group.rotation.set(Math.PI / 2 + baseTilt + heightTilt, 0, diag);
 
     /* arms follow the bat — adjust for bat height */
     const armT = Math.max(0, Math.min(1, (t - 0.08) / 0.72));
