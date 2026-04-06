@@ -13,8 +13,8 @@ const CANVAS_W = 900;
 const CANVAS_H = 600;
 
 const SZ = { halfW: 0.25, bottom: 0.22, top: 0.75 };
-const BAT_Y_LOW = 0.28;
-const BAT_Y_HIGH = 0.78;
+const BAT_Y_LOW = 0.52;
+const BAT_Y_HIGH = 0.72;
 
 const BBOX_HW = 0.24;
 const BBOX_HD = 0.32;
@@ -1299,12 +1299,12 @@ export class ThreeScene {
     }
     if (this.swingT < 0) {
       const sign = this.batterSide === 'right' ? 1 : -1;
-      this.batter.rShoulder.rotation.x = lerp(-0.10, -0.60, normY);
-      this.batter.lShoulder.rotation.x = lerp(-0.20, -0.70, normY);
+      this.batter.rShoulder.rotation.x = lerp(-0.35, -0.60, normY);
+      this.batter.lShoulder.rotation.x = lerp(-0.45, -0.70, normY);
       this.batter.rShoulder.rotation.z = sign * lerp(-0.42, -0.62, normY);
       this.batter.lShoulder.rotation.z = sign * lerp(0.32, 0.52, normY);
-      this.batter.rElbow.rotation.x = lerp(-1.20, -1.85, normY);
-      this.batter.lElbow.rotation.x = lerp(-1.00, -1.65, normY);
+      this.batter.rElbow.rotation.x = lerp(-1.50, -1.85, normY);
+      this.batter.lElbow.rotation.x = lerp(-1.30, -1.65, normY);
     }
   }
 
@@ -1312,6 +1312,7 @@ export class ThreeScene {
     if (this._bunting) { this.applyBuntPose(); return; }
     const sign = this.batterSide === 'right' ? 1 : -1;
     this.batter.hipJoint.rotation.y = sign * -0.25;
+    this.batter.hipJoint.rotation.x = 0;
     this.batter.rShoulder.rotation.x = -0.50;
     this.batter.rShoulder.rotation.z = sign * -0.60;
     this.batter.lShoulder.rotation.x = -0.60;
@@ -1490,24 +1491,29 @@ export class ThreeScene {
 
     /* body rotation */
     this.batter.hipJoint.rotation.y = sign * lerpKeyframes(S_HIP_Y, t);
+    const leanFwd = Math.max(0, 0.5 - this.batHeightNorm) * 0.25;
+    this.batter.hipJoint.rotation.x = leanFwd;
+    const kneeBend = Math.max(0, 0.5 - this.batHeightNorm) * 0.15;
+    this.batter.rHip.rotation.x = kneeBend;
+    this.batter.lHip.rotation.x = kneeBend;
     const frontLeg = this.batterSide === 'right' ? this.batter.lHip : this.batter.rHip;
-    frontLeg.rotation.x = lerpKeyframes(S_FRONT_LEG, t);
+    frontLeg.rotation.x = lerpKeyframes(S_FRONT_LEG, t) + kneeBend;
 
     /* bat arc in world space — tilt varies with cursor height */
     const angle = lerpKeyframes(S_BAT_ANGLE, t);
     const baseTilt = lerpKeyframes(S_BAT_TILT, t);
-    const rawTilt = (0.5 - this.batHeightNorm) * 0.55;
-    const heightTilt = Math.max(-0.35, Math.min(0.35, rawTilt));
+    const rawTilt = (0.5 - this.batHeightNorm) * 0.90;
+    const heightTilt = Math.max(-0.55, Math.min(0.55, rawTilt));
     this.batPivot.rotation.set(0, sign * angle, 0);
     const diag = sign * lerp(0.30, 0.08, t);
     this.bat.group.rotation.set(Math.PI / 2 + baseTilt + heightTilt, 0, diag);
 
     /* arms follow the bat — adjust for bat height */
     const armT = Math.max(0, Math.min(1, (t - 0.08) / 0.72));
-    const hOff = (this.batHeightNorm - 0.5) * 0.55;
+    const hOff = (this.batHeightNorm - 0.5) * 0.50;
     const armFwd = lerp(-0.50, 0.15, armT) - hOff;
     const armSpread = lerp(-0.60, 0.05, armT) - Math.abs(hOff) * 0.22;
-    const elbowBend = lerp(-1.80, -0.15, Math.max(0, Math.min(1, (t - 0.12) / 0.55))) - hOff * 0.35;
+    const elbowBend = lerp(-1.80, -0.15, Math.max(0, Math.min(1, (t - 0.12) / 0.55))) + hOff * 0.40;
     this.batter.rShoulder.rotation.x = armFwd;
     this.batter.lShoulder.rotation.x = armFwd - 0.10;
     this.batter.rShoulder.rotation.z = sign * armSpread;

@@ -11,6 +11,39 @@ interface GameHUDProps {
   announcement: string | null;
 }
 
+function KeyHints({ phase, isPlayerBatting, isPractice }: { phase: GamePhase; isPlayerBatting: boolean; isPractice: boolean }) {
+  const isFieldPhase = phase === GamePhase.BallInPlay || phase === GamePhase.Fielding;
+  const isBattingPhase = phase === GamePhase.PrePitch || phase === GamePhase.Pitching || phase === GamePhase.BatSwing;
+
+  const lines: string[] = [];
+
+  if (isPlayerBatting && isBattingPhase) {
+    lines.push('WASD Move \u00B7 Q/E Rotate');
+    lines.push('Space/Click Swing \u00B7 B Bunt \u00B7 Tab Switch Side');
+  } else if (isPlayerBatting && isFieldPhase) {
+    lines.push('F/\u2191 Advance \u00B7 G/\u2193 Retreat');
+  } else if (!isPlayerBatting && isFieldPhase) {
+    lines.push('Z 1B \u00B7 X 2B \u00B7 C 3B \u00B7 V Home');
+  } else if (!isPlayerBatting && phase === GamePhase.PrePitch) {
+    lines.push('Select pitch type \u2192 Aim \u2192 Accuracy \u2192 Power');
+  }
+
+  const extras: string[] = [];
+  if (isPractice) extras.push('R Reset');
+  extras.push('Esc Pause');
+  lines.push(extras.join(' \u00B7 '));
+
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="absolute bottom-1 inset-x-0 z-10 flex flex-col items-center gap-0.5 pointer-events-none">
+      {lines.map((line, i) => (
+        <span key={i} className="text-xs text-white/30 tracking-wide">{line}</span>
+      ))}
+    </div>
+  );
+}
+
 export default function GameHUD({
   phase,
   isPlayerBatting,
@@ -84,6 +117,8 @@ export default function GameHUD({
           </div>
         </div>
       )}
+
+      <KeyHints phase={phase} isPlayerBatting={isPlayerBatting} isPractice={isPractice} />
     </>
   );
 }

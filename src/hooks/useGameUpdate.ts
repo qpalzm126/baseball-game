@@ -112,7 +112,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   const practiceTimerRef = useRef(0);
   const maxDistRef = useRef(0);
   const [hitDebug, setHitDebug] = useState<HitDebugData | null>(null);
-  const [practiceStats, setPracticeStats] = useState<PracticeStatsData>({ pitches: 0, swings: 0, hits: 0, fouls: 0 });
+  const [practiceStats, setPracticeStats] = useState<PracticeStatsData>({ pitches: 0, swings: 0, hits: 0, homeRuns: 0, fouls: 0 });
   const [pitchPracticeStats, setPitchPracticeStats] = useState<PitchPracticeStatsData>({ pitches: 0, strikes: 0, balls: 0, hitsAllowed: 0, fouls: 0 });
   const [lastPitchResult, setLastPitchResult] = useState<LastPitchResultData | null>(null);
 
@@ -989,6 +989,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       showAnnouncement('HOME RUN!', 2.5);
       sceneRef.current?.hideBall();
       localBallRef.current = null;
+      if (storeRef.current.practiceMode && storeRef.current.isPlayerBatting) {
+        setPracticeStats((p) => ({ ...p, homeRuns: p.homeRuns + 1 }));
+      }
       const gs = useGameStore.getState();
       for (const runner of gs.runners) {
         gs.updateRunner(runner.id, { targetBase: BaseType.Home });

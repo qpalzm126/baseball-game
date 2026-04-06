@@ -25,6 +25,7 @@ export interface PracticeStatsData {
   pitches: number;
   swings: number;
   hits: number;
+  homeRuns: number;
   fouls: number;
 }
 
@@ -112,6 +113,7 @@ export default function PracticeOverlays({
               <div><span className="text-gray-500">Pitches</span> <span className="text-white font-bold">{practiceStats.pitches}</span></div>
               <div><span className="text-gray-500">Swings</span> <span className="text-white font-bold">{practiceStats.swings}</span></div>
               <div><span className="text-gray-500">Hits</span> <span className="text-green-400 font-bold">{practiceStats.hits}</span></div>
+              <div><span className="text-gray-500">HR</span> <span className="text-yellow-400 font-bold">{practiceStats.homeRuns}</span></div>
               <div><span className="text-gray-500">Fouls</span> <span className="text-red-400 font-bold">{practiceStats.fouls}</span></div>
             </div>
             <div className="mt-1.5 text-[9px] text-gray-500">Press <span className="text-yellow-400/80 font-bold">R</span> to reset</div>
