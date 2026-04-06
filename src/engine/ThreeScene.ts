@@ -213,9 +213,9 @@ const S_FRONT_LEG   = [{ t: 0, v: 0 }, { t: 0.12, v: 0.15 }, { t: 0.30, v: -0.10
  *   tip direction = (sin(a), 0, cos(a)) relative to pivot.
  *   Tip crosses z=0 at angle ≈ 1.84  →  sweet spot at a ≈ 2.0.
  */
-const S_BAT_ANGLE   = [{ t: 0, v: 0.70 }, { t: 0.10, v: 0.60 }, { t: 0.22, v: 1.05 }, { t: 0.33, v: 1.55 }, { t: 0.42, v: 1.90 }, { t: 0.50, v: 2.15 }, { t: 0.60, v: 2.50 }, { t: 0.75, v: 2.85 }, { t: 0.90, v: 3.05 }, { t: 1, v: 3.10 }];
+const S_BAT_ANGLE   = [{ t: 0, v: 0.40 }, { t: 0.10, v: 0.35 }, { t: 0.22, v: 0.80 }, { t: 0.33, v: 1.35 }, { t: 0.42, v: 1.80 }, { t: 0.50, v: 2.15 }, { t: 0.60, v: 2.55 }, { t: 0.75, v: 2.90 }, { t: 0.90, v: 3.10 }, { t: 1, v: 3.15 }];
 /* slight tilt variation */
-const S_BAT_TILT    = [{ t: 0, v: 0.20 }, { t: 0.25, v: 0.14 }, { t: 0.42, v: 0.08 }, { t: 0.70, v: 0.0 }, { t: 1, v: -0.06 }];
+const S_BAT_TILT    = [{ t: 0, v: 0.25 }, { t: 0.25, v: 0.18 }, { t: 0.42, v: 0.10 }, { t: 0.70, v: 0.0 }, { t: 1, v: -0.06 }];
 const SWING_CONTACT_LO = 0.35;
 const SWING_CONTACT_HI = 0.58;
 const SWING_DURATION = 0.22;
@@ -1246,7 +1246,7 @@ export class ThreeScene {
   private static readonly FOOT_HW = 0.09;
 
   moveBatterX(dx: number) {
-    const limX = this._bunting ? 0.45 : (BBOX_HW - ThreeScene.FOOT_HW);
+    const limX = BBOX_HW - ThreeScene.FOOT_HW;
     this.batterXOffset = Math.max(-limX, Math.min(limX, this.batterXOffset + dx));
     const posSign = this.batterSide === 'right' ? -1 : 1;
     const bx = posSign * 0.55 + this.batterXOffset;
@@ -1255,7 +1255,7 @@ export class ThreeScene {
   }
 
   moveBatterZ(dz: number) {
-    const limZ = this._bunting ? 0.50 : (BBOX_HD - ThreeScene.FOOT_HW);
+    const limZ = BBOX_HD - ThreeScene.FOOT_HW;
     this.batterZOffset = Math.max(-limZ, Math.min(limZ, this.batterZOffset + dz));
     this.batter.root.position.z = 0.45 + this.batterZOffset;
     if (this._bunting) this.applyBuntPose();
@@ -1499,7 +1499,7 @@ export class ThreeScene {
     const rawTilt = (0.5 - this.batHeightNorm) * 0.40;
     const heightTilt = Math.max(-0.25, Math.min(0.25, rawTilt));
     this.batPivot.rotation.set(0, sign * angle, 0);
-    const diag = sign * lerp(0.14, 0.04, t);
+    const diag = sign * lerp(0.30, 0.08, t);
     this.bat.group.rotation.set(Math.PI / 2 + baseTilt + heightTilt, 0, diag);
 
     /* arms follow the bat — adjust for bat height */
