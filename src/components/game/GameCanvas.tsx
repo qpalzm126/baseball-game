@@ -126,7 +126,7 @@ export default function GameCanvas() {
 
         {showPitchControls && pitchStep === 'type' && (
           <div className="absolute top-2 left-2 right-2 z-10">
-            <PitchSelector selectedPitch={store.selectedPitch} onSelect={game.handlePitchSelect} speedMultiplier={DIFFICULTY_CONFIGS[store.settings.difficulty].pitchSpeedMultiplier} />
+            <PitchSelector selectedPitch={store.selectedPitch} onSelect={game.handlePitchSelect} speedMultiplier={DIFFICULTY_CONFIGS[store.settings.difficulty].pitchSpeedMultiplier} reserveRForReset={isPractice} />
           </div>
         )}
         {showPitchControls && pitchStep === 'aim' && (

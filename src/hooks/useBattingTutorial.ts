@@ -22,7 +22,6 @@ export function useBattingTutorial(
       try {
         if (!localStorage.getItem('battingTutorialSeen')) {
           setShowBattingTutorial(true);
-          showBattingTutorialRef.current = true;
           tutorialShownRef.current = true;
         }
       } catch {
@@ -33,16 +32,13 @@ export function useBattingTutorial(
 
   const dismissTutorial = useCallback(() => {
     setShowBattingTutorial(false);
-    showBattingTutorialRef.current = false;
-    phaseTimerRef.current = 0;
     try { localStorage.setItem('battingTutorialSeen', '1'); } catch { /* noop */ }
-  }, [phaseTimerRef, showBattingTutorialRef]);
+  }, []);
 
   useEffect(() => {
     if (!showBattingTutorial) return;
-    const handler = () => dismissTutorial();
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    const timer = setTimeout(() => dismissTutorial(), 15000);
+    return () => clearTimeout(timer);
   }, [showBattingTutorial, dismissTutorial]);
 
   return { showBattingTutorial, dismissTutorial };

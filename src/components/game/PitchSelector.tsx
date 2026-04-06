@@ -9,9 +9,10 @@ interface PitchSelectorProps {
   onSelect: (pitch: PitchType) => void;
   disabled?: boolean;
   speedMultiplier?: number;
+  reserveRForReset?: boolean;
 }
 
-export default function PitchSelector({ selectedPitch, onSelect, disabled, speedMultiplier = 1 }: PitchSelectorProps) {
+export default function PitchSelector({ selectedPitch, onSelect, disabled, speedMultiplier = 1, reserveRForReset }: PitchSelectorProps) {
   const pitches = Object.values(PITCH_CONFIGS);
 
   useEffect(() => {
@@ -19,12 +20,13 @@ export default function PitchSelector({ selectedPitch, onSelect, disabled, speed
     const keyMap = new Map<string, PitchType>();
     for (const p of pitches) keyMap.set(p.key.toLowerCase(), p.type);
     const handler = (e: KeyboardEvent) => {
+      if (reserveRForReset && e.key.toLowerCase() === 'r') return;
       const pt = keyMap.get(e.key.toLowerCase());
       if (pt) onSelect(pt);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [disabled, onSelect, pitches]);
+  }, [disabled, onSelect, pitches, reserveRForReset]);
 
   return (
     <div className="bg-gray-900/90 backdrop-blur-sm rounded-xl border border-gray-700/50 p-3 shadow-xl animate-fade-in">

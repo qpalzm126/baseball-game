@@ -182,7 +182,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     if (scene.isSwinging()) return;
 
     const progress = pitchProgressRef.current;
-    const lookAhead = Math.min(1.0, progress + 0.12);
+    const perfectMode = storeRef.current.practiceMode && storeRef.current.practiceHitType != null;
+    const lookAhead = perfectMode ? 1.0 : Math.min(1.0, progress + 0.12);
     const p3d = scene.getPitchBallPos(
       lookAhead,
       pitchStartRef.current.x, pitchStartRef.current.y, pitchStartRef.current.z,
@@ -191,8 +192,6 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       pitchFlightSpeedRef.current,
     );
     const screenPos = scene.projectToGameCoords(p3d);
-
-    const perfectMode = storeRef.current.practiceMode && storeRef.current.practiceHitType != null;
     const accuracy = perfectMode ? 1.0 : (aiRef.current?.getDifficultyConfig().aiSwingAccuracy ?? 0.5);
 
     const jitterScale = perfectMode ? 0 : (1 - accuracy) * 0.04;
@@ -282,6 +281,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       }
 
       for (const key of inp.keysPressed) {
+        if (key === 'r' && storeRef.current.practiceMode) continue;
         const pitchType = getPitchByKey(key);
         if (pitchType && !s.selectedPitch) {
           resetPitchState();
@@ -389,6 +389,40 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         const collisionScale = DIFFICULTY_CONFIGS[s.settings.difficulty].batCollisionScale;
         const collision = scene.checkBatBallCollision3D(p3d, collisionScale);
         if (collision.hit) { processPhysicsHit(s, scene, collision.contactT, collision.contactPoint); return; }
+        const pmHit = storeRef.current.practiceMode && storeRef.current.practiceHitType != null;
+        if (pmHit && !s.isPlayerBatting && p3d.z >= -0.15 && p3d.z <= 0.40) {
+          processPhysicsHit(s, scene, 0.6, p3d.clone());
+          return;
+        }
+      }
+
+      if (!s.isPlayerBatting && aiRef.current && !scene.isSwinging() && !hasSwungRef.current) {
+        const snap = getSnapshot(s);
+        const screenPos = scene.projectToGameCoords(p3d);
+        const decision = aiRef.current.decideSwing(snap, screenPos);
+        const pmSwing = storeRef.current.practiceMode && storeRef.current.practiceHitType != null;
+        const shouldSwing = pmSwing || decision.shouldSwing;
+
+        if (shouldSwing) {
+          const chargePwr = aiChargePowerRef.current;
+          const swingMul = DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty].swingSpeedMultiplier;
+          const swingDurEst = (0.22 / Math.max(0.5, swingMul)) * (1.5 - 0.5 * Math.max(0, Math.min(1, chargePwr)));
+          const contactMidT = (0.35 + 0.58) / 2;
+          const timeToContact = swingDurEst * contactMidT;
+
+          const startZ = pitchStartRef.current.z;
+          const zSpeed = Math.abs(startZ) * pitchFlightSpeedRef.current;
+          const timeToPlate = Math.max(0, -p3d.z / Math.max(zSpeed, 0.1));
+
+          const timingOffset = pmSwing ? 0 : aiSwingTimingRef.current * 0.04;
+          const shouldSwingNow = timeToPlate <= timeToContact + timingOffset + 0.015
+                               && timeToPlate >= 0;
+
+          if (shouldSwingNow) {
+            scene.startSwing(Math.max(0.3, Math.min(1, chargePwr)), swingMul);
+            hasSwungRef.current = true;
+          }
+        }
       }
 
       if (p3d.z > -0.5 && p3d.z < 1.5 && !s.isPlayerBatting) {
@@ -494,6 +528,10 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         if (scene.isSwinging()) {
           const collision = scene.checkBatBallCollision3D(p3d, collisionScale);
           if (collision.hit) { processPhysicsHit(s, scene, collision.contactT, collision.contactPoint); return; }
+          if (perfectMode && p3d.z >= -0.15 && p3d.z <= 0.40) {
+            processPhysicsHit(s, scene, 0.6, p3d.clone());
+            return;
+          }
         }
       }
     }
@@ -586,6 +624,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
     hitTypeRef.current = result.type;
     const isPractice = storeRef.current.practiceMode;
+
+    showPitchInfo();
 
     if (isPractice) {
       setHitDebug({
@@ -752,7 +792,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       setPitchInfoDisplay(`${cfg.label}  ${mph} mph`);
       pitchInfoRef.current = null;
       if (pitchInfoTimerRef.current) clearTimeout(pitchInfoTimerRef.current);
-      pitchInfoTimerRef.current = setTimeout(() => setPitchInfoDisplay(null), 1200);
+      const duration = storeRef.current.practiceMode ? 2500 : 1200;
+      pitchInfoTimerRef.current = setTimeout(() => setPitchInfoDisplay(null), duration);
     }
   }
 
@@ -1311,10 +1352,11 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       updateRunnersOnField(s, dt);
     }
 
-    if (storeRef.current.practiceMode && s.isPlayerBatting && inp.keysPressed.has('r')) {
+    if (storeRef.current.practiceMode && inp.keysPressed.has('r')) {
       resetPitchState();
       localBallRef.current = null;
       sceneRef.current?.hideBall();
+      sceneRef.current?.resetBatter();
       goToPrePitch();
       return;
     }

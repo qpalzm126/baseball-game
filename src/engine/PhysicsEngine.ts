@@ -273,7 +273,9 @@ export function fieldBallPhysics(
   const dy = py - HOME_PLATE.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
-  if (dist >= wallRadius && pz <= wallHeight) {
+  let cleared = ball.clearedWall ?? false;
+
+  if (!cleared && dist >= wallRadius && pz <= wallHeight) {
     const nx = dx / dist;
     const ny = dy / dist;
     const radialSpeed = vx * nx + vy * ny;
@@ -290,7 +292,9 @@ export function fieldBallPhysics(
     }
   }
 
-  const overWall = dist >= wallRadius && pz > wallHeight;
+  const overWall = !cleared && dist >= wallRadius && pz > wallHeight;
+  if (overWall) cleared = true;
+
   return {
     ...ball,
     position3D: { x: px, y: py, z: pz },
@@ -300,6 +304,7 @@ export function fieldBallPhysics(
     landingPosition: landPos ?? ball.landingPosition,
     hitWall: overWall && !landed,
     bounceOverWall: overWall && landed,
+    clearedWall: cleared,
   };
 }
 

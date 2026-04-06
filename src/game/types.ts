@@ -108,6 +108,7 @@ export interface BallState {
   thrownByFielder?: number | null;
   hitWall?: boolean;
   bounceOverWall?: boolean;
+  clearedWall?: boolean;
 }
 
 export interface BatState {

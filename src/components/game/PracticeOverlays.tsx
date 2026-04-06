@@ -130,6 +130,7 @@ export default function PracticeOverlays({
               <div><span className="text-gray-500">Hits</span> <span className="text-red-400 font-bold">{pitchPracticeStats.hitsAllowed}</span></div>
               <div><span className="text-gray-500">Fouls</span> <span className="text-yellow-400 font-bold">{pitchPracticeStats.fouls}</span></div>
             </div>
+            <div className="mt-1.5 text-[9px] text-gray-500">Press <span className="text-yellow-400/80 font-bold">R</span> to reset</div>
           </div>
         </div>
       )}
