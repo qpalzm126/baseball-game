@@ -10,6 +10,7 @@ export function createRunner(fromBase: 0 | BaseType = 0): BaseRunner {
     id: `runner_${nextRunnerId++}`,
     currentBase: fromBase,
     targetBase: BaseType.First,
+    startBase: fromBase,
     position: pos,
     speed: RUNNER_SPEED,
     isOut: false,
@@ -27,6 +28,12 @@ export function nextBase(base: BaseType | 0): BaseType {
   if (base === BaseType.First) return BaseType.Second;
   if (base === BaseType.Second) return BaseType.Third;
   return BaseType.Home;
+}
+
+export function prevBase(base: BaseType | 0): BaseType | 0 {
+  if (base === BaseType.Third) return BaseType.Second;
+  if (base === BaseType.Second) return BaseType.First;
+  return 0;
 }
 
 export function advanceRunners(
@@ -60,30 +67,42 @@ export function advanceRunners(
       if (target === 0) target = 1;
       else if (target < 4) target = target + 1;
     }
+    if (r.currentBase === 0 && target === 0) target = 1;
     if (target > 4) target = 4;
-    return { ...r, targetBase: target as BaseType };
+    return { ...r, startBase: r.currentBase, targetBase: target as BaseType };
   });
 }
 
 export function updateRunnerMovement(runner: BaseRunner, dt: number): BaseRunner {
   if (runner.isOut) return runner;
-  if (runner.currentBase === runner.targetBase) return runner;
 
-  const immediateNext = nextBase(runner.currentBase);
-  const immediatePos = getBasePosition(immediateNext);
-
-  const newPos = moveToward(runner.position, immediatePos, runner.speed * dt * 60);
-  const arrived = distance(newPos, immediatePos) < 3;
-
-  if (arrived) {
-    const updated: BaseRunner = {
-      ...runner,
-      position: { ...immediatePos },
-      currentBase: immediateNext,
-    };
-    return updated;
+  if (runner.currentBase === runner.targetBase) {
+    const basePos = getBasePosition(runner.currentBase);
+    if (distance(runner.position, basePos) < 3) return runner;
+    const newPos = moveToward(runner.position, basePos, runner.speed * dt * 60);
+    if (distance(newPos, basePos) < 3) return { ...runner, position: { ...basePos } };
+    return { ...runner, position: newPos };
   }
 
+  const goingForward = (runner.targetBase as number) > (runner.currentBase as number);
+
+  if (goingForward) {
+    const immediateNext = nextBase(runner.currentBase);
+    const immediatePos = getBasePosition(immediateNext);
+    const newPos = moveToward(runner.position, immediatePos, runner.speed * dt * 60);
+    if (distance(newPos, immediatePos) < 3) {
+      return { ...runner, position: { ...immediatePos }, currentBase: immediateNext };
+    }
+    return { ...runner, position: newPos };
+  }
+
+  const immediatePrev = prevBase(runner.currentBase);
+  if ((immediatePrev as number) <= 0) return runner;
+  const immediatePos = getBasePosition(immediatePrev);
+  const newPos = moveToward(runner.position, immediatePos, runner.speed * dt * 60);
+  if (distance(newPos, immediatePos) < 3) {
+    return { ...runner, position: { ...immediatePos }, currentBase: immediatePrev as BaseType };
+  }
   return { ...runner, position: newPos };
 }
 
@@ -121,6 +140,23 @@ export function holdRunners(runners: BaseRunner[]): BaseRunner[] {
     const imNext = nextBase(r.currentBase);
     if ((r.targetBase as number) > (imNext as number)) {
       return { ...r, targetBase: imNext };
+    }
+    return r;
+  });
+}
+
+/** Send all runners back toward the previous base. */
+export function retreatRunners(runners: BaseRunner[]): BaseRunner[] {
+  return runners.map((r) => {
+    if (r.isOut) return r;
+    if (r.currentBase === 0) return r;
+    const cur = r.currentBase as number;
+    const target = r.targetBase as number;
+    if (target > cur) {
+      return { ...r, targetBase: r.currentBase as BaseType };
+    }
+    if (target === cur && cur > 1) {
+      return { ...r, targetBase: (cur - 1) as BaseType };
     }
     return r;
   });

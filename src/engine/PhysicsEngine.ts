@@ -136,6 +136,36 @@ export function calculatePhysicsHit(contact: PhysicsContact): PhysicsHitResult {
   };
 }
 
+/* ======= bunt hit calc ======= */
+
+export function calculateBuntHit(
+  ballVelX: number, ballVelZ: number,
+): PhysicsHitResult {
+  const sprayAngle = randomRange(-0.65, 0.65);
+  const exitSpeed = randomRange(2.5, 5.5);
+  const launchAngle = randomRange(-0.05, 0.12);
+
+  const up = Math.sin(launchAngle) * exitSpeed;
+  const horiz = Math.cos(launchAngle) * exitSpeed;
+  const scale = 0.40;
+
+  const type = Math.random() < 0.15 ? HitType.PopUp : HitType.GroundBall;
+
+  return {
+    type,
+    velocity: {
+      x: Math.sin(sprayAngle) * horiz * scale,
+      y: -Math.cos(sprayAngle) * horiz * scale,
+      z: up * scale,
+    },
+    direction: sprayAngle,
+    exitSpeed,
+    launchAngleDeg: launchAngle * (180 / Math.PI),
+    sprayAngleDeg: sprayAngle * (180 / Math.PI),
+    contactQuality: randomRange(0.3, 0.6),
+  };
+}
+
 /* ======= legacy hit calc (for AI) ======= */
 
 export function calculateHitResult(

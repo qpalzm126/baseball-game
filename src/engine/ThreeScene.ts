@@ -231,12 +231,17 @@ export class ThreeScene {
   /* camera transition */
   private camPosFrom = new THREE.Vector3();
   private camPosTo = new THREE.Vector3();
-  private camLookFrom = new THREE.Vector3(0, 0.7, -5);
-  private camLookTo = new THREE.Vector3(0, 0.7, -5);
-  private camLookCur = new THREE.Vector3(0, 0.7, -5);
+  private camLookFrom = new THREE.Vector3(0, 0.40, -5);
+  private camLookTo = new THREE.Vector3(0, 0.40, -5);
+  private camLookCur = new THREE.Vector3(0, 0.40, -5);
   private camT = 1;
   private camSpeed = 2.0;
   private currentMode: 'batting' | 'fielding' = 'batting';
+
+  /* batting camera orbit */
+  private battingCamAngle = 0;
+  private static readonly MAX_BAT_CAM_ANGLE = 0.44;
+  private static readonly Y_AXIS = new THREE.Vector3(0, 1, 0);
 
   private battingGroup = new THREE.Group();
   private fieldGroup = new THREE.Group();
@@ -247,6 +252,9 @@ export class ThreeScene {
   private pitcher: JointedPlayer;
   private pitcherAnimT = 0;
   private pitcherReleased = false;
+  private pitcherZ = -6.4;
+  private moundMesh: THREE.Mesh | null = null;
+  private rubberMesh: THREE.Mesh | null = null;
 
   /* batter */
   private batter: JointedPlayer;
@@ -260,6 +268,7 @@ export class ThreeScene {
   private swingDur = SWING_DURATION;
   private prevBatTip = new THREE.Vector3();
   private batTipVel = new THREE.Vector3();
+  private _bunting = false;
 
   /* ball */
   private ballMesh: THREE.Mesh;
@@ -286,8 +295,12 @@ export class ThreeScene {
   private pitchTrajectoryLine: THREE.Line | null = null;
   private readonly TRAJ_SEGS = 50;
 
-  /* field wall */
+  /* field wall & stands */
   private wallMesh: THREE.Mesh | null = null;
+  private standsGroup: THREE.Group | null = null;
+  private standsMaterials: THREE.Material[] = [];
+  private standsTargetOpacity = 0.18;
+  private standsCurrentOpacity = 0.18;
   private wallRadiusTH = 32;
   private wallHeightTH = 1.5;
 
@@ -311,8 +324,8 @@ export class ThreeScene {
 
     const aspect = this.w / this.h;
     this.camera = new THREE.PerspectiveCamera(47, aspect, 0.1, 200);
-    this.camera.position.set(0.30, 1.65, 2.5);
-    this.camera.lookAt(0, 0.7, -5);
+    this.camera.position.set(0.20, 0.62, 2.5);
+    this.camera.lookAt(0, 0.40, -5);
 
     this.buildEnvironment();
     this.buildField();
@@ -419,9 +432,11 @@ export class ThreeScene {
       new THREE.MeshStandardMaterial({ color: 0xa0782c, roughness: 0.7 }));
     const mp = gameToThree(450, 340);
     mound.position.set(mp.x, 0.09, mp.z); mound.castShadow = true; fg.add(mound);
+    this.moundMesh = mound;
     const rubber = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.04),
       new THREE.MeshStandardMaterial({ color: 0xffffff }));
     rubber.position.set(mp.x, 0.19, mp.z); fg.add(rubber);
+    this.rubberMesh = rubber;
 
     const baseMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
     for (const b of [fb, sb, tb]) {
@@ -528,15 +543,184 @@ export class ThreeScene {
     mesh.receiveShadow = true;
     this.fieldGroup.add(mesh);
     this.wallMesh = mesh;
+
+    this.buildStands(hp);
   }
 
-  setFieldSize(wallRadiusGU: number, wallHeightGU: number) {
+  private buildStands(hp: { x: number; z: number }) {
+    if (this.standsGroup) {
+      this.standsGroup.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+          else child.material.dispose();
+        }
+      });
+      this.fieldGroup.remove(this.standsGroup);
+      this.standsGroup = null;
+    }
+
+    const group = new THREE.Group();
+    const wallR = this.wallRadiusTH;
+    const wallH = this.wallHeightTH;
+    const arcStart = -Math.PI / 4 - 0.15;
+    const arcEnd = Math.PI / 4 + 0.15;
+    const segs = 48;
+
+    const numTiers = 6;
+    const tierDepth = 1.8;
+    const tierRise = wallH * 0.65;
+
+    const tierColors = [0x5577bb, 0x4466aa, 0x6688cc, 0x5577bb, 0x4466aa, 0x6688cc];
+    const seatColors = [0xbb5555, 0x5577bb, 0xbbaa55, 0xbb5555, 0x5577bb, 0xbbaa55];
+    this.standsMaterials = [];
+
+    for (let t = 0; t < numTiers; t++) {
+      const innerR = wallR + t * tierDepth + 0.1;
+      const outerR = wallR + (t + 1) * tierDepth;
+      const baseY = wallH + t * tierRise;
+      const topY = wallH + (t + 1) * tierRise;
+
+      const initOp = this.standsCurrentOpacity;
+      const tierMat = new THREE.MeshStandardMaterial({
+        color: tierColors[t % tierColors.length], roughness: 0.8,
+        transparent: true, opacity: initOp, depthWrite: false,
+      });
+      const seatMat = new THREE.MeshStandardMaterial({
+        color: seatColors[t % seatColors.length], roughness: 0.7,
+        transparent: true, opacity: initOp, depthWrite: false,
+      });
+      this.standsMaterials.push(tierMat, seatMat);
+
+      const floorVerts: number[] = [];
+      const floorIdx: number[] = [];
+      const riserVerts: number[] = [];
+      const riserIdx: number[] = [];
+
+      for (let i = 0; i <= segs; i++) {
+        const a = arcStart + (arcEnd - arcStart) * (i / segs);
+        const sinA = Math.sin(a), cosA = Math.cos(a);
+        const ix = hp.x + sinA * innerR, iz = hp.z - cosA * innerR;
+        const ox = hp.x + sinA * outerR, oz = hp.z - cosA * outerR;
+
+        floorVerts.push(ix, topY, iz);
+        floorVerts.push(ox, topY, oz);
+
+        riserVerts.push(ix, baseY, iz);
+        riserVerts.push(ix, topY, iz);
+
+        if (i < segs) {
+          const b = i * 2;
+          floorIdx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
+          riserIdx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
+        }
+      }
+
+      const floorGeo = new THREE.BufferGeometry();
+      floorGeo.setAttribute('position', new THREE.Float32BufferAttribute(floorVerts, 3));
+      floorGeo.setIndex(floorIdx);
+      floorGeo.computeVertexNormals();
+      const floor = new THREE.Mesh(floorGeo, tierMat);
+      floor.receiveShadow = true;
+      group.add(floor);
+
+      const riserGeo = new THREE.BufferGeometry();
+      riserGeo.setAttribute('position', new THREE.Float32BufferAttribute(riserVerts, 3));
+      riserGeo.setIndex(riserIdx);
+      riserGeo.computeVertexNormals();
+      const riser = new THREE.Mesh(riserGeo, seatMat);
+      group.add(riser);
+    }
+
+    const crowdCount = Math.floor(segs * numTiers * 3);
+    const dotPositions = new Float32Array(crowdCount * 3);
+    const dotColors = new Float32Array(crowdCount * 3);
+    const skinHues = [
+      [1.0, 0.85, 0.7], [0.95, 0.78, 0.6], [0.85, 0.65, 0.45],
+      [0.7, 0.5, 0.3], [0.55, 0.38, 0.22],
+    ];
+    const shirtHues = [
+      [1, 0.2, 0.2], [0.2, 0.4, 1], [1, 1, 0.3], [0.9, 0.9, 0.9],
+      [1, 0.5, 0.1], [0.2, 0.8, 0.3], [0.6, 0.2, 0.8],
+    ];
+    let di = 0;
+    for (let t = 0; t < numTiers; t++) {
+      const r = wallR + (t + 0.5) * tierDepth;
+      const y = wallH + (t + 0.85) * tierRise;
+      const dotsPerRow = Math.floor(crowdCount / numTiers);
+      for (let d = 0; d < dotsPerRow; d++) {
+        const frac = (d + Math.random() * 0.6) / dotsPerRow;
+        const a = arcStart + (arcEnd - arcStart) * frac;
+        const rOff = r + (Math.random() - 0.5) * tierDepth * 0.7;
+        dotPositions[di * 3] = hp.x + Math.sin(a) * rOff;
+        dotPositions[di * 3 + 1] = y + (Math.random() - 0.3) * tierRise * 0.5;
+        dotPositions[di * 3 + 2] = hp.z - Math.cos(a) * rOff;
+        const col = Math.random() < 0.35
+          ? skinHues[Math.floor(Math.random() * skinHues.length)]
+          : shirtHues[Math.floor(Math.random() * shirtHues.length)];
+        dotColors[di * 3] = col[0];
+        dotColors[di * 3 + 1] = col[1];
+        dotColors[di * 3 + 2] = col[2];
+        di++;
+      }
+    }
+    const crowdGeo = new THREE.BufferGeometry();
+    crowdGeo.setAttribute('position', new THREE.BufferAttribute(dotPositions.slice(0, di * 3), 3));
+    crowdGeo.setAttribute('color', new THREE.BufferAttribute(dotColors.slice(0, di * 3), 3));
+    const initOp = this.standsCurrentOpacity;
+    const crowdMat = new THREE.PointsMaterial({
+      size: 0.25, vertexColors: true, sizeAttenuation: true,
+      transparent: true, opacity: initOp, depthWrite: false,
+    });
+    this.standsMaterials.push(crowdMat);
+    group.add(new THREE.Points(crowdGeo, crowdMat));
+
+    const backR = wallR + numTiers * tierDepth;
+    const backH = wallH + numTiers * tierRise;
+    const backMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2a3a, roughness: 0.9, side: THREE.DoubleSide,
+      transparent: true, opacity: initOp, depthWrite: false,
+    });
+    this.standsMaterials.push(backMat);
+    const backVerts: number[] = [];
+    const backIdx: number[] = [];
+    for (let i = 0; i <= segs; i++) {
+      const a = arcStart + (arcEnd - arcStart) * (i / segs);
+      backVerts.push(hp.x + Math.sin(a) * backR, 0, hp.z - Math.cos(a) * backR);
+      backVerts.push(hp.x + Math.sin(a) * backR, backH, hp.z - Math.cos(a) * backR);
+      if (i < segs) {
+        const b = i * 2;
+        backIdx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+      }
+    }
+    const backGeo = new THREE.BufferGeometry();
+    backGeo.setAttribute('position', new THREE.Float32BufferAttribute(backVerts, 3));
+    backGeo.setIndex(backIdx);
+    backGeo.computeVertexNormals();
+    group.add(new THREE.Mesh(backGeo, backMat));
+
+    this.fieldGroup.add(group);
+    this.standsGroup = group;
+  }
+
+  setFieldSize(wallRadiusGU: number, wallHeightGU: number, moundDistanceFt = 60.5) {
     const G2T = 1 / 28;
     this.wallRadiusTH = wallRadiusGU * G2T;
     this.wallHeightTH = wallHeightGU * G2T;
     const hp = { x: 0, z: 0.6 };
     this.buildWall(hp);
+
+    const PRO_MOUND_FT = 60.5;
+    const PRO_Z = -6.4;
+    this.pitcherZ = PRO_Z * (moundDistanceFt / PRO_MOUND_FT);
+    this.pitcher.root.position.set(0, 0, this.pitcherZ);
+
+    const moundZ = this.pitcherZ + 0.05;
+    if (this.moundMesh) this.moundMesh.position.z = moundZ;
+    if (this.rubberMesh) this.rubberMesh.position.z = moundZ;
   }
+
+  getPitcherZ(): number { return this.pitcherZ; }
 
   private buildStrikeZone() {
     const szGroup = new THREE.Group();
@@ -866,7 +1050,8 @@ export class ThreeScene {
     this.pitchTrajectoryLine.visible = visible && this.currentMode === 'batting';
     if (!this.pitchTrajectoryLine.visible) return;
 
-    const startX = 0, startY = 1.5, startZ = -6.4;
+    const rp = this.getPitcherReleasePosSim();
+    const startX = rp.x, startY = rp.y, startZ = rp.z;
     const endX = this.pitchAimTarget.x;
     const endY = this.pitchAimTarget.y;
     const endZ = 0;
@@ -895,8 +1080,33 @@ export class ThreeScene {
   /* --------- camera --------- */
 
   private getBattingCamPos(): THREE.Vector3 {
-    return new THREE.Vector3(0, 0.75, 2.5);
+    const sideSign = this.batterSide === 'right' ? 1 : -1;
+    const base = new THREE.Vector3(sideSign * 0.20, 0.62, 2.5);
+    if (this.battingCamAngle !== 0) base.applyAxisAngle(ThreeScene.Y_AXIS, this.battingCamAngle);
+    return base;
   }
+
+  private getBattingCamLookAt(): THREE.Vector3 {
+    const base = new THREE.Vector3(0, 0.40, -5);
+    if (this.battingCamAngle !== 0) base.applyAxisAngle(ThreeScene.Y_AXIS, this.battingCamAngle);
+    return base;
+  }
+
+  rotateBattingCam(delta: number) {
+    this.battingCamAngle = Math.max(
+      -ThreeScene.MAX_BAT_CAM_ANGLE,
+      Math.min(ThreeScene.MAX_BAT_CAM_ANGLE, this.battingCamAngle + delta),
+    );
+    if (this.currentMode === 'batting') {
+      this.camPosTo.copy(this.getBattingCamPos());
+      this.camLookTo.copy(this.getBattingCamLookAt());
+      this.camera.position.copy(this.camPosTo);
+      this.camLookCur.copy(this.camLookTo);
+      this.camera.lookAt(this.camLookCur);
+    }
+  }
+
+  getBattingCamAngle(): number { return this.battingCamAngle; }
 
   switchToBattingView(instant = false) {
     if (this.currentMode === 'batting') {
@@ -907,12 +1117,14 @@ export class ThreeScene {
     this.camPosFrom.copy(this.camera.position);
     this.camLookFrom.copy(this.camLookCur);
     this.camPosTo.copy(this.getBattingCamPos());
-    this.camLookTo.set(0, 0.28, -5);
+    this.camLookTo.copy(this.getBattingCamLookAt());
     this.camSpeed = 8.0;
     this.camT = instant ? 1 : 0;
     if (instant) this.applyCam(1);
     this.fielderLabelsVisible = false;
     this.applyFielderVisibility();
+    this.standsTargetOpacity = 0.18;
+    if (instant) this.applyStandsOpacity(0.18);
   }
 
   switchToFieldingView(instant = false) {
@@ -930,6 +1142,8 @@ export class ThreeScene {
     if (instant) this.applyCam(1);
     this.fielderLabelsVisible = true;
     this.applyFielderVisibility();
+    this.standsTargetOpacity = 0.85;
+    if (instant) this.applyStandsOpacity(0.85);
   }
 
   private fielderLabelsVisible = false;
@@ -948,12 +1162,25 @@ export class ThreeScene {
       this.camT = Math.min(1, this.camT + dt * this.camSpeed);
       this.applyCam(smoothstep(this.camT));
     }
+    if (Math.abs(this.standsCurrentOpacity - this.standsTargetOpacity) > 0.005) {
+      const speed = 3.0;
+      const diff = this.standsTargetOpacity - this.standsCurrentOpacity;
+      this.standsCurrentOpacity += diff * Math.min(1, dt * speed);
+      this.applyStandsOpacity(this.standsCurrentOpacity);
+    }
   }
 
   private applyCam(t: number) {
     this.camera.position.lerpVectors(this.camPosFrom, this.camPosTo, t);
     this.camLookCur.lerpVectors(this.camLookFrom, this.camLookTo, t);
     this.camera.lookAt(this.camLookCur);
+  }
+
+  private applyStandsOpacity(opacity: number) {
+    this.standsCurrentOpacity = opacity;
+    for (const mat of this.standsMaterials) {
+      mat.opacity = opacity;
+    }
   }
 
   isCameraTransitioning(): boolean { return this.camT < 1; }
@@ -1008,9 +1235,10 @@ export class ThreeScene {
 
     if (this.currentMode === 'batting') {
       this.camPosTo.copy(this.getBattingCamPos());
+      this.camLookTo.copy(this.getBattingCamLookAt());
       this.camera.position.copy(this.camPosTo);
-      this.camera.lookAt(0, 0.28, -5);
-      this.camLookCur.set(0, 0.28, -5);
+      this.camLookCur.copy(this.camLookTo);
+      this.camera.lookAt(this.camLookCur);
     }
     this.resetBatterPose();
   }
@@ -1018,17 +1246,19 @@ export class ThreeScene {
   private static readonly FOOT_HW = 0.09;
 
   moveBatterX(dx: number) {
-    const limX = BBOX_HW - ThreeScene.FOOT_HW;
+    const limX = this._bunting ? 0.45 : (BBOX_HW - ThreeScene.FOOT_HW);
     this.batterXOffset = Math.max(-limX, Math.min(limX, this.batterXOffset + dx));
     const posSign = this.batterSide === 'right' ? -1 : 1;
     const bx = posSign * 0.55 + this.batterXOffset;
     this.batter.root.position.x = bx;
+    if (this._bunting) this.applyBuntPose();
   }
 
   moveBatterZ(dz: number) {
-    const limZ = BBOX_HD - ThreeScene.FOOT_HW;
+    const limZ = this._bunting ? 0.50 : (BBOX_HD - ThreeScene.FOOT_HW);
     this.batterZOffset = Math.max(-limZ, Math.min(limZ, this.batterZOffset + dz));
     this.batter.root.position.z = 0.45 + this.batterZOffset;
+    if (this._bunting) this.applyBuntPose();
   }
 
   getBatterBodyPos(): { x: number; y: number; z: number } {
@@ -1051,11 +1281,22 @@ export class ThreeScene {
     this.batterZOffset = 0;
     this.batHeightNorm = 0.5;
     this.swingT = -1;
+    this._bunting = false;
     this.positionBatter();
+    this.setBatterVisible(true);
+  }
+
+  setBatterVisible(visible: boolean) {
+    this.batter.root.visible = visible;
+    this.batPivot.visible = visible;
   }
 
   setBatHeight(normY: number) {
     this.batHeightNorm = normY;
+    if (this._bunting) {
+      this.applyBuntPose();
+      return;
+    }
     if (this.swingT < 0) {
       const sign = this.batterSide === 'right' ? 1 : -1;
       this.batter.rShoulder.rotation.x = lerp(-0.35, -0.60, normY);
@@ -1068,21 +1309,74 @@ export class ThreeScene {
   }
 
   private resetBatterPose() {
+    if (this._bunting) { this.applyBuntPose(); return; }
     const sign = this.batterSide === 'right' ? 1 : -1;
     this.batter.hipJoint.rotation.y = sign * -0.25;
-    /* shoulders: arms raised and pulled back */
     this.batter.rShoulder.rotation.x = -0.50;
     this.batter.rShoulder.rotation.z = sign * -0.60;
     this.batter.lShoulder.rotation.x = -0.60;
     this.batter.lShoulder.rotation.z = sign * 0.50;
-    /* elbows: bent so hands are near back shoulder */
     this.batter.rElbow.rotation.x = -1.80;
     this.batter.lElbow.rotation.x = -1.60;
-    /* bat pivot ready position */
     this.batPivot.rotation.set(0, sign * -0.40, 0);
-    /* slight crouch */
     this.batter.rHip.rotation.x = 0.08;
     this.batter.lHip.rotation.x = 0.08;
+  }
+
+  private static readonly BUNT_Y_LOW = 0.20;
+  private static readonly BUNT_Y_HIGH = 0.78;
+
+  private applyBuntPose() {
+    const sign = this.batterSide === 'right' ? 1 : -1;
+    this.batter.hipJoint.rotation.y = 0;
+
+    if (this.batPivot.parent !== this.battingGroup) {
+      if (this.batPivot.parent) this.batPivot.parent.remove(this.batPivot);
+      this.battingGroup.add(this.batPivot);
+    }
+    const bx = this.batter.root.position.x;
+    const bz = this.batter.root.position.z;
+    const batY = lerp(ThreeScene.BUNT_Y_LOW, ThreeScene.BUNT_Y_HIGH, this.batHeightNorm);
+    this.batPivot.position.set(bx, batY, bz - 0.10);
+    this.bat.group.rotation.set(Math.PI / 2, 0, 0);
+    this.batPivot.rotation.set(0, sign * 1.57, 0);
+
+    const armLower = lerp(-0.30, -0.90, this.batHeightNorm);
+    this.batter.rShoulder.rotation.x = armLower;
+    this.batter.rShoulder.rotation.z = sign * -0.20;
+    this.batter.lShoulder.rotation.x = armLower;
+    this.batter.lShoulder.rotation.z = sign * 0.20;
+    this.batter.rElbow.rotation.x = lerp(-0.80, -1.40, this.batHeightNorm);
+    this.batter.lElbow.rotation.x = lerp(-0.80, -1.40, this.batHeightNorm);
+    this.batter.rHip.rotation.x = 0.12;
+    this.batter.lHip.rotation.x = 0.12;
+  }
+
+  setBunting(active: boolean) {
+    if (this.swingT >= 0) return;
+    this._bunting = active;
+    if (active) {
+      this.applyBuntPose();
+    } else {
+      this.attachBatToHand();
+      this.resetBatterPose();
+    }
+  }
+
+  isBunting() { return this._bunting; }
+
+  checkBuntBallCollision(ballPos: THREE.Vector3, collisionScale = 2.2): boolean {
+    if (!this._bunting) return false;
+    const { handle, tip } = this.getBatWorldEndpoints();
+    const ab = tip.clone().sub(handle);
+    const ac = ballPos.clone().sub(handle);
+    const abLenSq = ab.lengthSq();
+    if (abLenSq < 0.0001) return false;
+    const t = Math.max(0, Math.min(1, ac.dot(ab) / abLenSq));
+    const closest = handle.clone().add(ab.clone().multiplyScalar(t));
+    const dist = ballPos.distanceTo(closest);
+    const collisionR = BALL_RADIUS + lerp(BAT_HANDLE_R, BAT_BARREL_R, t);
+    return dist <= collisionR * collisionScale;
   }
 
   /* --------- pitcher animation --------- */
@@ -1117,6 +1411,49 @@ export class ThreeScene {
   }
 
   isPitchReleased() { return this.pitcherReleased; }
+
+  getPitcherReleasePos(): THREE.Vector3 {
+    this.pitcher.rElbow.updateWorldMatrix(true, false);
+    const handLocal = new THREE.Vector3(0, -FOREARM_LEN, 0);
+    return this.pitcher.rElbow.localToWorld(handLocal);
+  }
+
+  private getPitcherReleasePosSim(): THREE.Vector3 {
+    const t = PITCH_RELEASE_T;
+    const bodyY = lerpKeyframes(P_BODY_Y, t);
+    const hipY = 0.48;
+    const shoulderLocalY = 0.30;
+    const shoulderLocalX = 0.16;
+    const armLen = UPPER_ARM_LEN + FOREARM_LEN;
+
+    const armRotX = lerpKeyframes(P_R_ARM_X, t);
+    const armRotZ = lerpKeyframes(P_R_ARM_Z, t);
+    const hipRotY = lerpKeyframes(P_HIP_Y, t);
+
+    const handX = 0;
+    const handY = -armLen * Math.cos(armRotX);
+    const handZ = armLen * Math.sin(armRotX);
+
+    const cosZ = Math.cos(armRotZ), sinZ = Math.sin(armRotZ);
+    const rx = handX * cosZ - handY * sinZ;
+    const ry = handX * sinZ + handY * cosZ;
+
+    const sx = shoulderLocalX + rx;
+    const sy = shoulderLocalY + ry;
+    const sz = handZ;
+
+    const cosH = Math.cos(hipRotY), sinH = Math.sin(hipRotY);
+    const hx = sx * cosH + sz * sinH;
+    const hy = sy;
+    const hz = -sx * sinH + sz * cosH;
+
+    const worldY = bodyY + hipY + hy;
+    const cosR = Math.cos(Math.PI), sinR = Math.sin(Math.PI);
+    const worldX = hx * cosR + hz * sinR;
+    const worldZ = this.pitcherZ + (-hx * sinR + hz * cosR);
+
+    return new THREE.Vector3(worldX, worldY, worldZ);
+  }
 
   /* --------- swing animation --------- */
 

@@ -11,16 +11,18 @@ const rules = [
     icon: '&#9918;',
     items: [
       'Move the mouse to position the bat in the strike zone',
-      'The bat follows your cursor — time your positioning to make contact',
+      'Hold Click or SPACE to charge swing power, release to swing',
+      'A/D or ←/→ to shift batter left/right, W/S or ↑/↓ to move forward/back',
+      'Press Q / E to rotate the camera angle for a better view',
+      'Right Click or B to toggle bunt stance — the bat is held out for a soft contact (mostly ground balls)',
       'Hit type depends on contact point and timing (ground ball, line drive, fly ball, home run)',
-      'Early/late timing can cause fouls',
     ],
   },
   {
     title: 'Pitching (Defense)',
     icon: '&#127936;',
     items: [
-      'Press Q / W / E / R / T or click to select a pitch type',
+      'Press Q / W / E / R / T / Y or click to select a pitch type',
       'Click a cell in the 3x3 strike zone grid to aim',
       'The speed bar cycles back and forth — press Enter or click to lock speed',
       'Center of bar = fastest, edges = slowest',
@@ -39,13 +41,22 @@ const rules = [
     ],
   },
   {
+    title: 'Baserunning (Offense)',
+    icon: '&#127939;',
+    items: [
+      'Press F or ↑ to send all runners forward one base',
+      'Press G or ↓ to retreat runners to the previous base',
+      'Runners advance automatically on hits (single / double / HR)',
+    ],
+  },
+  {
     title: 'Scoring & Rules',
     icon: '&#128202;',
     items: [
-      'Runs, outs, and base advancement are handled automatically',
       '3 strikes = strikeout (out), 4 balls = walk',
       '3 outs = half-inning ends, teams switch offense/defense',
       'Catching a fly ball / pop-up = out',
+      'Force / tag outs at bases when fielders hold the ball',
       'Game ends after the configured number of innings',
     ],
   },

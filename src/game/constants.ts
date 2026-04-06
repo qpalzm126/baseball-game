@@ -59,25 +59,35 @@ export const FIELDER_LABELS: Record<FielderPosition, string> = {
  *
  * MLB realistic references (induced movement, right-handed pitcher):
  *   4-Seam Fastball: ~2" arm-side run, ~13" induced vertical rise (less drop)
+ *   2-Seam Fastball: ~8" arm-side run, ~7" less rise than 4-seam
  *   Curveball:       ~7" glove-side, ~8" drop (total w/ gravity much more)
  *   Slider:          ~4" glove-side, ~3" drop
  *   Changeup:        ~15" arm-side, ~30" total drop (gravity+induced ~3" extra)
  *   Sinker:          ~15" arm-side, ~6" less rise than fastball (= more drop)
  */
 export const PITCH_CONFIGS: Record<PitchType, PitchConfig> = {
-  [PitchType.Fastball]: {
-    type: PitchType.Fastball,
-    label: 'Fastball',
+  [PitchType.FourSeam]: {
+    type: PitchType.FourSeam,
+    label: '4-Seam FB',
     key: 'Q',
     baseSpeed: 95,
     breakX: 1,
     breakY: -4,
     color: '#ef4444',
   },
+  [PitchType.TwoSeam]: {
+    type: PitchType.TwoSeam,
+    label: '2-Seam FB',
+    key: 'W',
+    baseSpeed: 92,
+    breakX: 5,
+    breakY: 5,
+    color: '#fb923c',
+  },
   [PitchType.Curveball]: {
     type: PitchType.Curveball,
     label: 'Curveball',
-    key: 'W',
+    key: 'E',
     baseSpeed: 78,
     breakX: 5,
     breakY: 18,
@@ -86,7 +96,7 @@ export const PITCH_CONFIGS: Record<PitchType, PitchConfig> = {
   [PitchType.Slider]: {
     type: PitchType.Slider,
     label: 'Slider',
-    key: 'E',
+    key: 'R',
     baseSpeed: 84,
     breakX: -10,
     breakY: 6,
@@ -95,7 +105,7 @@ export const PITCH_CONFIGS: Record<PitchType, PitchConfig> = {
   [PitchType.Changeup]: {
     type: PitchType.Changeup,
     label: 'Changeup',
-    key: 'R',
+    key: 'T',
     baseSpeed: 82,
     breakX: 6,
     breakY: 12,
@@ -104,7 +114,7 @@ export const PITCH_CONFIGS: Record<PitchType, PitchConfig> = {
   [PitchType.Sinker]: {
     type: PitchType.Sinker,
     label: 'Sinker',
-    key: 'T',
+    key: 'Y',
     baseSpeed: 90,
     breakX: -4,
     breakY: 14,
@@ -156,13 +166,13 @@ export const DEFAULT_INNINGS = 3;
 /*
  * Field sizes based on real-world baseball field dimensions:
  *
- * Level            | CF distance | Wall height | Reference
- * -----------------|-------------|-------------|------------------------------
- * Little League    | 200 ft      | 4 ft        | Ages 9-12, 60 ft basepaths
- * Middle School    | 275 ft      | 6 ft        | Ages 13-14, 70-80 ft paths
- * High School      | 330 ft      | 8 ft        | Standard HS, 90 ft paths
- * College          | 370 ft      | 8 ft        | NCAA D1
- * Professional     | 400 ft      | 10 ft       | MLB / pro stadiums
+ * Level            | CF dist | Mound dist | Wall ht | Reference
+ * -----------------|---------|------------|---------|------------------------------
+ * Little League    | 200 ft  | 46 ft      | 4 ft    | Ages 9-12, 60 ft basepaths
+ * Middle School    | 275 ft  | 54 ft      | 6 ft    | Ages 13-14, 70-80 ft paths
+ * High School      | 330 ft  | 60.5 ft    | 8 ft    | Standard HS, 90 ft paths
+ * College          | 370 ft  | 60.5 ft    | 8 ft    | NCAA D1, 90 ft paths
+ * Professional     | 400 ft  | 60.5 ft    | 10 ft   | MLB / pro stadiums
  */
 export const FIELD_SIZE_CONFIGS: Record<FieldSize, FieldSizeConfig> = {
   little_league: {
@@ -170,6 +180,7 @@ export const FIELD_SIZE_CONFIGS: Record<FieldSize, FieldSizeConfig> = {
     label: '少棒場',
     labelEn: 'Little League',
     distanceFt: 200,
+    moundDistanceFt: 46,
     wallRadiusGU: 455,
     wallHeightGU: 22,
   },
@@ -178,6 +189,7 @@ export const FIELD_SIZE_CONFIGS: Record<FieldSize, FieldSizeConfig> = {
     label: '青少棒場',
     labelEn: 'Middle School',
     distanceFt: 275,
+    moundDistanceFt: 54,
     wallRadiusGU: 625,
     wallHeightGU: 30,
   },
@@ -186,6 +198,7 @@ export const FIELD_SIZE_CONFIGS: Record<FieldSize, FieldSizeConfig> = {
     label: '高中場',
     labelEn: 'High School',
     distanceFt: 330,
+    moundDistanceFt: 60.5,
     wallRadiusGU: 750,
     wallHeightGU: 36,
   },
@@ -194,6 +207,7 @@ export const FIELD_SIZE_CONFIGS: Record<FieldSize, FieldSizeConfig> = {
     label: '大學場',
     labelEn: 'College',
     distanceFt: 370,
+    moundDistanceFt: 60.5,
     wallRadiusGU: 841,
     wallHeightGU: 36,
   },
@@ -202,6 +216,7 @@ export const FIELD_SIZE_CONFIGS: Record<FieldSize, FieldSizeConfig> = {
     label: '職業場',
     labelEn: 'Professional',
     distanceFt: 400,
+    moundDistanceFt: 60.5,
     wallRadiusGU: 900,
     wallHeightGU: 42,
   },
@@ -243,13 +258,13 @@ export function getScaledFielderDefaults(fieldSize: FieldSize): Record<FielderPo
  *
  * Level        | ~Flight time (fastball) | Real-world reference
  * -------------|-------------------------|----------------------------------
- * 小學生       | ~0.83 s                 | Youth 50-65 mph / 46 ft mound
- * 中學生       | ~0.67 s                 | Jr. High 60-75 mph / 54 ft
- * 高中生       | ~0.56 s                 | HS 70-85 mph / 60.5 ft
- * 大專生       | ~0.47 s                 | College 80-90 mph
- * 青年         | ~0.41 s                 | Minor league 85-95 mph
- * 中職         | ~0.36 s                 | CPBL 88-95 mph
- * MLB          | ~0.38 s                 | MLB 92-102 mph (realistic)
+ * 小學生       | ~0.83 s                 | Youth 50-55 mph / 46 ft mound (easy)
+ * 中學生       | ~0.67 s                 | Jr. High 60-68 mph / 54 ft (easy)
+ * 高中生       | ~0.56 s                 | HS 78-85 mph / 60.5 ft (slightly easy)
+ * 大專生       | ~0.45 s                 | College 86-90 mph
+ * 青年         | ~0.42 s                 | Minor league 88-93 mph
+ * 中職         | ~0.41 s                 | CPBL 89-93 mph (~0.41s real)
+ * MLB          | ~0.38 s                 | MLB 95-102 mph (~0.39s real)
  * 外星人       | ~0.26 s                 | Beyond human (超越現實)
  */
 export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
@@ -269,6 +284,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     pitchBarSpeed: 0.8,
     breakMultiplier: 0.35,
     swingSpeedMultiplier: 0.70,
+    pitchSpeedMultiplier: 0.55,
   },
   middle: {
     id: 'middle',
@@ -286,6 +302,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     pitchBarSpeed: 1.0,
     breakMultiplier: 0.50,
     swingSpeedMultiplier: 0.78,
+    pitchSpeedMultiplier: 0.68,
   },
   high: {
     id: 'high',
@@ -303,12 +320,13 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     pitchBarSpeed: 1.3,
     breakMultiplier: 0.65,
     swingSpeedMultiplier: 0.86,
+    pitchSpeedMultiplier: 0.84,
   },
   college: {
     id: 'college',
     label: '大專生',
     labelEn: 'College',
-    pitchFlightBase: 2.15,
+    pitchFlightBase: 2.22,
     aiPitchAccuracy: 0.76,
     aiSwingReaction: 0.66,
     aiSwingAccuracy: 0.60,
@@ -320,12 +338,13 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     pitchBarSpeed: 1.6,
     breakMultiplier: 0.80,
     swingSpeedMultiplier: 0.92,
+    pitchSpeedMultiplier: 0.93,
   },
   youth: {
     id: 'youth',
     label: '青年',
     labelEn: 'Youth',
-    pitchFlightBase: 2.45,
+    pitchFlightBase: 2.38,
     aiPitchAccuracy: 0.84,
     aiSwingReaction: 0.76,
     aiSwingAccuracy: 0.72,
@@ -337,12 +356,13 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     pitchBarSpeed: 2.0,
     breakMultiplier: 0.90,
     swingSpeedMultiplier: 0.96,
+    pitchSpeedMultiplier: 0.95,
   },
   cpbl: {
     id: 'cpbl',
     label: '中職',
     labelEn: 'CPBL',
-    pitchFlightBase: 2.8,
+    pitchFlightBase: 2.44,
     aiPitchAccuracy: 0.90,
     aiSwingReaction: 0.85,
     aiSwingAccuracy: 0.82,
@@ -354,6 +374,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     pitchBarSpeed: 2.5,
     breakMultiplier: 0.95,
     swingSpeedMultiplier: 1.00,
+    pitchSpeedMultiplier: 0.96,
   },
   mlb: {
     id: 'mlb',
@@ -371,6 +392,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     pitchBarSpeed: 3.0,
     breakMultiplier: 1.0,
     swingSpeedMultiplier: 1.05,
+    pitchSpeedMultiplier: 1.07,
   },
   alien: {
     id: 'alien',
@@ -388,6 +410,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     pitchBarSpeed: 4.0,
     breakMultiplier: 1.4,
     swingSpeedMultiplier: 1.15,
+    pitchSpeedMultiplier: 1.13,
   },
 };
 

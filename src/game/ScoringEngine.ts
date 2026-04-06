@@ -29,11 +29,29 @@ export function evaluateFieldingPlay(
   return result;
 }
 
+/**
+ * A base is a force-play base only when there's an unbroken chain of runners
+ * starting from home plate (batter = base 0) through each consecutive base up
+ * to the one before it.  e.g. force at 3rd requires runners with startBase 0, 1, 2.
+ */
+function isForceBase(runners: BaseRunner[], base: BaseType): boolean {
+  if (base === BaseType.First) return true;
+  const occupied = new Set(
+    runners.filter((r) => !r.isOut).map((r) => r.startBase as number),
+  );
+  for (let b = 0; b < (base as number); b++) {
+    if (!occupied.has(b)) return false;
+  }
+  return true;
+}
+
 export function checkForceOut(
   runners: BaseRunner[],
   fielder: Fielder,
   targetBase: BaseType,
 ): string | null {
+  if (!isForceBase(runners, targetBase)) return null;
+
   const basePos = targetBase === BaseType.Home ? HOME_PLATE : BASE_POSITIONS[targetBase];
   if (distance(fielder.location, basePos) > 30) return null;
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   GamePhase,
   PitchType,
+  HitType,
   InningState,
   CountState,
   ScoreState,
@@ -77,6 +78,7 @@ export interface GameStore {
   practicePitchType: PitchType | null;
   practiceStrikesOnly: boolean;
   practiceTargetCell: number | null;
+  practiceHitType: HitType | null;
 
   startGame: (settings?: Partial<GameSettings>) => void;
   startPractice: (settings?: Partial<GameSettings>) => void;
@@ -84,13 +86,14 @@ export interface GameStore {
   setPracticePitchType: (type: PitchType | null) => void;
   setPracticeStrikesOnly: (v: boolean) => void;
   setPracticeTargetCell: (cell: number | null) => void;
+  setPracticeHitType: (type: HitType | null) => void;
   updateSettings: (updates: Partial<GameSettings>) => void;
   setPhase: (phase: GamePhase) => void;
-  selectPitch: (pitch: PitchType) => void;
-  setSpeedBarValue: (value: number) => void;
-  setTargetCell: (cell: number) => void;
-  setPitchAimPos: (pos: { x: number; y: number }) => void;
-  setAccuracyValue: (value: number) => void;
+  selectPitch: (pitch: PitchType | null) => void;
+  setSpeedBarValue: (value: number | null) => void;
+  setTargetCell: (cell: number | null) => void;
+  setPitchAimPos: (pos: { x: number; y: number } | null) => void;
+  setAccuracyValue: (value: number | null) => void;
   selectFielder: (id: number | null) => void;
   updateFielder: (id: number, updates: Partial<Fielder>) => void;
   updateBall: (updates: Partial<BallState>) => void;
@@ -131,6 +134,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   practicePitchType: null,
   practiceStrikesOnly: false,
   practiceTargetCell: null,
+  practiceHitType: null,
 
   startGame: (settings) => {
     const merged = { ...get().settings, ...settings };
@@ -207,6 +211,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setPracticePitchType: (type) => set({ practicePitchType: type }),
   setPracticeStrikesOnly: (v) => set({ practiceStrikesOnly: v }),
   setPracticeTargetCell: (cell) => set({ practiceTargetCell: cell }),
+  setPracticeHitType: (type) => set({ practiceHitType: type }),
 
   updateSettings: (updates) => set({ settings: { ...get().settings, ...updates } }),
 

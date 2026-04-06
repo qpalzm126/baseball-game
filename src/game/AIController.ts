@@ -24,6 +24,10 @@ import { randomRange, distance } from '@/utils/math';
 
 export class AIController implements IPlayerController {
   private cfg: DifficultyConfig;
+  private throwCooldownUntil = 0;
+  private frameCounter = 0;
+  private static readonly THROW_COOLDOWN_FRAMES = 40;
+  private static readonly NEAR_BASE_RADIUS = 55;
 
   constructor(difficulty: Difficulty = 'college') {
     this.cfg = DIFFICULTY_CONFIGS[difficulty];
@@ -65,9 +69,15 @@ export class AIController implements IPlayerController {
       ballPosition.y >= sz.y - margin &&
       ballPosition.y <= sz.y + sz.height + margin;
 
-    const shouldSwing = inZone
-      ? Math.random() < this.cfg.aiSwingReaction
-      : Math.random() < 0.15;
+    const zoneCenter = { x: sz.x + sz.width / 2, y: sz.y + sz.height / 2 };
+    const dxFromCenter = Math.abs(ballPosition.x - zoneCenter.x) / (sz.width / 2 + margin);
+    const dyFromCenter = Math.abs(ballPosition.y - zoneCenter.y) / (sz.height / 2 + margin);
+    const edgePenalty = Math.max(dxFromCenter, dyFromCenter);
+
+    const swingChance = inZone
+      ? this.cfg.aiSwingReaction * (1 - edgePenalty * 0.35)
+      : 0.08 + (1 - this.cfg.aiSwingAccuracy) * 0.15;
+    const shouldSwing = Math.random() < swingChance;
 
     const errorScale = (1 - this.cfg.aiSwingAccuracy) * 35;
 
@@ -87,6 +97,8 @@ export class AIController implements IPlayerController {
   }
 
   controlFielders(gameState: GameSnapshot): FielderCommand[] {
+    this.frameCounter++;
+
     if (
       gameState.phase !== GamePhase.Fielding &&
       gameState.phase !== GamePhase.BallInPlay
@@ -102,9 +114,12 @@ export class AIController implements IPlayerController {
 
     const holder = gameState.fielders.find((f) => f.id === gameState.ball.heldByFielder);
     if (holder) {
-      const throwTarget = this.findBestThrowTarget(gameState, holder);
-      if (throwTarget) {
-        commands.push({ fielderId: holder.id, throwTo: throwTarget });
+      if (this.frameCounter >= this.throwCooldownUntil) {
+        const throwTarget = this.findBestThrowTarget(gameState, holder);
+        if (throwTarget) {
+          commands.push({ fielderId: holder.id, throwTo: throwTarget });
+          this.throwCooldownUntil = this.frameCounter + AIController.THROW_COOLDOWN_FRAMES;
+        }
       }
       const coverCmds = this.getBaseCoverCommands(gameState, holder.id);
       commands.push(...coverCmds);
@@ -188,7 +203,13 @@ export class AIController implements IPlayerController {
 
   private findBestThrowTarget(gameState: GameSnapshot, holder: { id: number; location: Vec2 }): number | null {
     const runners = gameState.runners.filter((r) => !r.isOut);
+
+    if (runners.length === 0) return null;
+
     const movingRunners = runners.filter((r) => r.currentBase !== r.targetBase);
+    const allSettled = movingRunners.length === 0;
+
+    if (allSettled && !this.isOutfielder(holder.id)) return null;
 
     if (movingRunners.length > 0) {
       const sorted = [...movingRunners].sort(
@@ -203,46 +224,51 @@ export class AIController implements IPlayerController {
       }
     }
 
-    if (runners.length > 0) {
-      const leadRunner = [...runners].sort(
-        (a, b) => (b.currentBase as number) - (a.currentBase as number),
-      )[0];
-      const nextBase = Math.min((leadRunner.currentBase as number) + 1, 4);
-      const basePos = nextBase === 4 ? HOME_PLATE : BASE_POSITIONS[nextBase];
-      const fielder = this.findFielderNearBase(gameState.fielders, basePos, holder.id);
-      if (fielder !== null) return fielder;
-
-      const curBasePos = leadRunner.currentBase === BaseType.Home
-        ? HOME_PLATE : BASE_POSITIONS[leadRunner.currentBase as number];
-      const curFielder = this.findFielderNearBase(gameState.fielders, curBasePos, holder.id);
-      if (curFielder !== null) return curFielder;
-    }
-
     if (this.isOutfielder(holder.id)) {
-      let bestRelay: number | null = null;
-      let bestDist = Infinity;
-      for (const f of gameState.fielders) {
-        if (f.id === holder.id || this.isOutfielder(f.id)) continue;
-        const d = distance(f.location, holder.location);
-        if (d < bestDist) { bestRelay = f.id; bestDist = d; }
-      }
-      if (bestRelay !== null) return bestRelay;
+      const cutoffId = this.findCutoffMan(gameState, holder);
+      if (cutoffId !== null) return cutoffId;
     }
 
-    const fb = gameState.fielders.find((f) => f.id === 3);
-    if (fb && fb.id !== holder.id) return fb.id;
-    const ss = gameState.fielders.find((f) => f.id === 6);
-    if (ss && ss.id !== holder.id) return ss.id;
+    if (movingRunners.length > 0) {
+      const leadMoving = [...movingRunners].sort(
+        (a, b) => (b.targetBase as number) - (a.targetBase as number),
+      )[0];
+      const tb = leadMoving.targetBase;
+      const basePos = tb === BaseType.Home ? HOME_PLATE : BASE_POSITIONS[tb as number];
+      for (const f of gameState.fielders) {
+        if (f.id === holder.id) continue;
+        const d = distance(f.location, basePos);
+        if (d < 100) return f.id;
+      }
+    }
+
     return null;
+  }
+
+  private findCutoffMan(gameState: GameSnapshot, holder: { id: number; location: Vec2 }): number | null {
+    const infielderIds = [1, 4, 6, 3, 5];
+    let best: number | null = null;
+    let bestScore = Infinity;
+
+    for (const fid of infielderIds) {
+      const f = gameState.fielders.find((ff) => ff.id === fid);
+      if (!f || f.id === holder.id) continue;
+      const distToHolder = distance(f.location, holder.location);
+      const distToHome = distance(f.location, HOME_PLATE);
+      const score = distToHolder * 0.6 + distToHome * 0.4;
+      if (score < bestScore) { best = f.id; bestScore = score; }
+    }
+    return best;
   }
 
   private findFielderNearBase(fielders: GameSnapshot['fielders'], basePos: Vec2, holderId: number): number | null {
     let best: number | null = null;
     let bestDist = Infinity;
+    const radius = AIController.NEAR_BASE_RADIUS;
     for (const f of fielders) {
       if (f.id === holderId) continue;
       const d = distance(f.location, basePos);
-      if (d < 120 && d < bestDist) {
+      if (d < radius && d < bestDist) {
         best = f.id;
         bestDist = d;
       }

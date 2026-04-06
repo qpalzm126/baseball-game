@@ -8,9 +8,10 @@ interface PitchSelectorProps {
   selectedPitch: PitchType | null;
   onSelect: (pitch: PitchType) => void;
   disabled?: boolean;
+  speedMultiplier?: number;
 }
 
-export default function PitchSelector({ selectedPitch, onSelect, disabled }: PitchSelectorProps) {
+export default function PitchSelector({ selectedPitch, onSelect, disabled, speedMultiplier = 1 }: PitchSelectorProps) {
   const pitches = Object.values(PITCH_CONFIGS);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export default function PitchSelector({ selectedPitch, onSelect, disabled }: Pit
             <span className="text-[9px] text-gray-500 mr-0.5 font-mono">[{p.key}]</span>
             {' '}{p.label}
             <span className="block text-[10px] mt-0.5 font-normal" style={{ color: p.color }}>
-              {p.baseSpeed} mph
+              {Math.round(p.baseSpeed * speedMultiplier)} mph
             </span>
           </button>
         ))}

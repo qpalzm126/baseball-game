@@ -23,7 +23,8 @@ export enum GamePhase {
 }
 
 export enum PitchType {
-  Fastball = 'FASTBALL',
+  FourSeam = 'FOUR_SEAM',
+  TwoSeam = 'TWO_SEAM',
   Curveball = 'CURVEBALL',
   Slider = 'SLIDER',
   Changeup = 'CHANGEUP',
@@ -60,6 +61,8 @@ export interface BaseRunner {
   id: string;
   currentBase: BaseType | 0;
   targetBase: BaseType;
+  /** Base the runner occupied when the current play started (for force-out chain). */
+  startBase: BaseType | 0;
   position: Vec2;
   speed: number;
   isOut: boolean;
@@ -205,6 +208,8 @@ export interface DifficultyConfig {
   breakMultiplier: number;
   /** Swing speed multiplier (higher = faster swing, higher exit velocity) */
   swingSpeedMultiplier: number;
+  /** Pitch speed display multiplier — scales baseSpeed for realistic mph at each level */
+  pitchSpeedMultiplier: number;
 }
 
 export type FieldSize = 'little_league' | 'middle_school' | 'high_school' | 'college' | 'professional';
@@ -215,6 +220,8 @@ export interface FieldSizeConfig {
   labelEn: string;
   /** Center field distance in feet */
   distanceFt: number;
+  /** Pitcher mound distance to home plate in feet */
+  moundDistanceFt: number;
   /** Wall radius in game units */
   wallRadiusGU: number;
   /** Wall height in game units */
