@@ -35,11 +35,26 @@ export class AIController implements IPlayerController {
 
   getDifficultyConfig(): DifficultyConfig { return this.cfg; }
 
-  decidePitch(_gameState: GameSnapshot): PitchDecision {
+  decidePitch(gameState: GameSnapshot): PitchDecision {
     const types = Object.values(PitchType);
     const type = types[Math.floor(Math.random() * types.length)];
 
-    const throwBall = Math.random() < this.cfg.aiBallChance;
+    const balls = gameState.count.balls;
+    const strikes = gameState.count.strikes;
+
+    let ballChance = this.cfg.aiBallChance;
+    if (balls >= 3) {
+      ballChance = 0;
+    } else if (balls === 2) {
+      ballChance *= 0.25;
+    } else if (balls === 1) {
+      ballChance *= 0.6;
+    }
+    if (strikes === 2 && balls < 2) {
+      ballChance = Math.min(ballChance * 1.5, 0.20);
+    }
+
+    const throwBall = Math.random() < ballChance;
 
     let targetCell: number;
     if (throwBall) {
@@ -47,7 +62,8 @@ export class AIController implements IPlayerController {
     } else {
       const edgeCells = [0, 2, 3, 5, 6, 8];
       const centerCells = [1, 4, 7];
-      const useEdge = Math.random() < 0.6;
+      const preferEdge = strikes < 2 ? 0.6 : 0.75;
+      const useEdge = Math.random() < preferEdge;
       const pool = useEdge ? edgeCells : centerCells;
       targetCell = pool[Math.floor(Math.random() * pool.length)];
     }

@@ -29,6 +29,7 @@ export enum PitchType {
   Slider = 'SLIDER',
   Changeup = 'CHANGEUP',
   Sinker = 'SINKER',
+  Splitter = 'SPLITTER',
 }
 
 export interface PitchConfig {

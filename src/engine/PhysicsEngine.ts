@@ -73,6 +73,8 @@ export interface PhysicsContact {
   verticalOffset: number;
   /** 0‑1 charge power: tap = 0.3, full hold = 1.0 */
   chargePower: number;
+  /** signed horizontal offset perpendicular to bat axis (positive = ball on bat's front face) */
+  lateralOffset: number;
 }
 
 export interface PhysicsHitResult {
@@ -97,11 +99,17 @@ export function calculatePhysicsHit(contact: PhysicsContact): PhysicsHitResult {
   const batDirY = batSpeed > 0.01 ? contact.batVelY / batSpeed : 0;
   const batDirZ = batSpeed > 0.01 ? contact.batVelZ / batSpeed : -1;
 
+  const ballDirX = pitchSpeed > 0.01 ? contact.ballVelX / pitchSpeed : 0;
+  const ballDirY = pitchSpeed > 0.01 ? contact.ballVelY / pitchSpeed : 0;
+
   const vo = contact.verticalOffset;
   const batLift = batDirY * 0.6;
-  const launchAngle = Math.atan2(vo * 12.0 + batLift + 0.12, 1.0) + randomRange(-0.08, 0.08);
+  const pitchDropBias = -ballDirY * 0.5;
+  const launchAngle = Math.atan2(vo * 12.0 + batLift + pitchDropBias + 0.12, 1.0) + randomRange(-0.08, 0.08);
 
-  const sprayAngle = Math.atan2(batDirX, -batDirZ) + randomRange(-0.15, 0.15);
+  const lateralBias = (contact.lateralOffset ?? 0) * 4.0;
+  const pitchLateralBias = ballDirX * 0.3;
+  const sprayAngle = Math.atan2(batDirX, -batDirZ) + lateralBias + pitchLateralBias + randomRange(-0.15, 0.15);
 
   const upSpeed = Math.sin(launchAngle) * exitSpeed;
   const horizSpeed = Math.cos(launchAngle) * exitSpeed;
@@ -139,17 +147,32 @@ export function calculatePhysicsHit(contact: PhysicsContact): PhysicsHitResult {
 /* ======= bunt hit calc ======= */
 
 export function calculateBuntHit(
-  ballVelX: number, ballVelZ: number,
+  ballVelX: number, ballVelY: number, ballVelZ: number,
+  verticalOffset: number = 0, lateralOffset: number = 0,
 ): PhysicsHitResult {
-  const sprayAngle = randomRange(-0.65, 0.65);
-  const exitSpeed = randomRange(2.5, 5.5);
-  const launchAngle = randomRange(-0.05, 0.12);
+  const pitchSpeed = Math.sqrt(ballVelX ** 2 + ballVelY ** 2 + ballVelZ ** 2);
+  const ballDirX = pitchSpeed > 0.01 ? ballVelX / pitchSpeed : 0;
+  const ballDirY = pitchSpeed > 0.01 ? ballVelY / pitchSpeed : 0;
+
+  const lateralBias = lateralOffset * 3.0;
+  const pitchLateralBias = ballDirX * 0.6;
+  const sprayAngle = lateralBias + pitchLateralBias + randomRange(-0.45, 0.45);
+  const exitSpeed = Math.max(2.0, pitchSpeed * randomRange(0.18, 0.35));
+  const pitchDropBias = -ballDirY * 0.7;
+  const launchAngle = Math.atan2(verticalOffset * 15.0 + pitchDropBias + 0.05, 1.0) + randomRange(-0.06, 0.06);
 
   const up = Math.sin(launchAngle) * exitSpeed;
   const horiz = Math.cos(launchAngle) * exitSpeed;
   const scale = 0.40;
 
-  const type = Math.random() < 0.15 ? HitType.PopUp : HitType.GroundBall;
+  let type: HitType;
+  if (launchAngle > 0.35) {
+    type = HitType.PopUp;
+  } else if (launchAngle < -0.02) {
+    type = HitType.GroundBall;
+  } else {
+    type = Math.random() < 0.15 ? HitType.PopUp : HitType.GroundBall;
+  }
 
   return {
     type,

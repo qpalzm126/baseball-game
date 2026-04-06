@@ -31,7 +31,7 @@ export default function GameCanvas() {
 
   const store = useGameStore();
 
-  const { paused, pausedRef, windowHiddenRef, togglePause, resumeGame, quitGame } = usePauseControl();
+  const { paused, pausedRef, windowHiddenRef, togglePause, resumeGame, quitGame, restartGame } = usePauseControl();
 
   // showBattingTutorialRef is needed by useGameUpdate to pause the loop,
   // so we create a stable ref here and pass it to both hooks.
@@ -107,9 +107,23 @@ export default function GameCanvas() {
 
   /* =========== JSX =========== */
 
+  const diff = DIFFICULTY_CONFIGS[store.settings.difficulty];
+  const field = FIELD_SIZE_CONFIGS[store.settings.fieldSize];
+
   return (
     <div className="flex flex-col items-center gap-4">
       {!isPractice && <Scoreboard />}
+      {store.gameStarted && (
+        <div className="flex gap-3 text-[11px] text-gray-500 tracking-wide">
+          <span><span className="text-yellow-400/80 font-bold">{diff.label}</span> {diff.labelEn}</span>
+          <span className="text-gray-700">|</span>
+          <span><span className="text-blue-400/80 font-bold">{field.label}</span> {field.distanceFt}ft</span>
+          <span className="text-gray-700">|</span>
+          <span>{store.settings.totalInnings} innings</span>
+          <span className="text-gray-700">|</span>
+          <span>{store.settings.batterSide === 'right' ? 'Right' : 'Left'} batting</span>
+        </div>
+      )}
       <div className="relative">
         <div ref={containerRef} className="border border-gray-700 rounded-lg overflow-hidden" style={{ width: 900, maxWidth: '100%', height: 600 }} />
 
@@ -183,7 +197,7 @@ export default function GameCanvas() {
           </button>
         )}
 
-        {paused && <PauseMenu onResume={resumeGame} onQuit={quitGame} />}
+        {paused && <PauseMenu onResume={resumeGame} onQuit={quitGame} onRestart={restartGame} settings={store.settings} />}
 
         {showBattingTutorial && <BattingTutorial onDismiss={dismissTutorial} />}
       </div>

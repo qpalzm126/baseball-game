@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/store/gameStore';
 import { GamePhase } from '@/game/types';
 
@@ -6,6 +7,7 @@ export function usePauseControl() {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const windowHiddenRef = useRef(false);
+  const router = useRouter();
 
   const store = useGameStore();
 
@@ -26,6 +28,12 @@ export function usePauseControl() {
     resumeGame();
     useGameStore.getState().endGame();
   }, [resumeGame]);
+
+  const restartGame = useCallback(() => {
+    resumeGame();
+    useGameStore.getState().endGame();
+    router.push('/');
+  }, [resumeGame, router]);
 
   useEffect(() => {
     const onVisChange = () => { windowHiddenRef.current = document.hidden; };
@@ -52,5 +60,5 @@ export function usePauseControl() {
     return () => window.removeEventListener('keydown', onKey);
   }, [store.gameStarted, store.phase, togglePause]);
 
-  return { paused, pausedRef, windowHiddenRef, togglePause, resumeGame, quitGame };
+  return { paused, pausedRef, windowHiddenRef, togglePause, resumeGame, quitGame, restartGame };
 }

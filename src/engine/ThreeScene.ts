@@ -13,8 +13,8 @@ const CANVAS_W = 900;
 const CANVAS_H = 600;
 
 const SZ = { halfW: 0.25, bottom: 0.22, top: 0.75 };
-const BAT_Y_LOW = 0.58;
-const BAT_Y_HIGH = 0.74;
+const BAT_Y_LOW = 0.28;
+const BAT_Y_HIGH = 0.78;
 
 const BBOX_HW = 0.24;
 const BBOX_HD = 0.32;
@@ -1299,12 +1299,12 @@ export class ThreeScene {
     }
     if (this.swingT < 0) {
       const sign = this.batterSide === 'right' ? 1 : -1;
-      this.batter.rShoulder.rotation.x = lerp(-0.35, -0.60, normY);
-      this.batter.lShoulder.rotation.x = lerp(-0.45, -0.70, normY);
-      this.batter.rShoulder.rotation.z = sign * lerp(-0.50, -0.62, normY);
-      this.batter.lShoulder.rotation.z = sign * lerp(0.40, 0.52, normY);
-      this.batter.rElbow.rotation.x = lerp(-1.60, -1.85, normY);
-      this.batter.lElbow.rotation.x = lerp(-1.40, -1.65, normY);
+      this.batter.rShoulder.rotation.x = lerp(-0.10, -0.60, normY);
+      this.batter.lShoulder.rotation.x = lerp(-0.20, -0.70, normY);
+      this.batter.rShoulder.rotation.z = sign * lerp(-0.42, -0.62, normY);
+      this.batter.lShoulder.rotation.z = sign * lerp(0.32, 0.52, normY);
+      this.batter.rElbow.rotation.x = lerp(-1.20, -1.85, normY);
+      this.batter.lElbow.rotation.x = lerp(-1.00, -1.65, normY);
     }
   }
 
@@ -1365,18 +1365,18 @@ export class ThreeScene {
 
   isBunting() { return this._bunting; }
 
-  checkBuntBallCollision(ballPos: THREE.Vector3, collisionScale = 2.2): boolean {
-    if (!this._bunting) return false;
+  checkBuntBallCollision(ballPos: THREE.Vector3, collisionScale = 1.8): { hit: boolean; contactPoint: THREE.Vector3; contactT: number } {
+    if (!this._bunting) return { hit: false, contactPoint: new THREE.Vector3(), contactT: 0 };
     const { handle, tip } = this.getBatWorldEndpoints();
     const ab = tip.clone().sub(handle);
     const ac = ballPos.clone().sub(handle);
     const abLenSq = ab.lengthSq();
-    if (abLenSq < 0.0001) return false;
+    if (abLenSq < 0.0001) return { hit: false, contactPoint: handle, contactT: 0 };
     const t = Math.max(0, Math.min(1, ac.dot(ab) / abLenSq));
     const closest = handle.clone().add(ab.clone().multiplyScalar(t));
     const dist = ballPos.distanceTo(closest);
     const collisionR = BALL_RADIUS + lerp(BAT_HANDLE_R, BAT_BARREL_R, t);
-    return dist <= collisionR * collisionScale;
+    return { hit: dist <= collisionR * collisionScale, contactPoint: closest, contactT: t };
   }
 
   /* --------- pitcher animation --------- */
@@ -1496,15 +1496,15 @@ export class ThreeScene {
     /* bat arc in world space — tilt varies with cursor height */
     const angle = lerpKeyframes(S_BAT_ANGLE, t);
     const baseTilt = lerpKeyframes(S_BAT_TILT, t);
-    const rawTilt = (0.5 - this.batHeightNorm) * 0.40;
-    const heightTilt = Math.max(-0.25, Math.min(0.25, rawTilt));
+    const rawTilt = (0.5 - this.batHeightNorm) * 0.55;
+    const heightTilt = Math.max(-0.35, Math.min(0.35, rawTilt));
     this.batPivot.rotation.set(0, sign * angle, 0);
     const diag = sign * lerp(0.30, 0.08, t);
     this.bat.group.rotation.set(Math.PI / 2 + baseTilt + heightTilt, 0, diag);
 
     /* arms follow the bat — adjust for bat height */
     const armT = Math.max(0, Math.min(1, (t - 0.08) / 0.72));
-    const hOff = (this.batHeightNorm - 0.5) * 0.38;
+    const hOff = (this.batHeightNorm - 0.5) * 0.55;
     const armFwd = lerp(-0.50, 0.15, armT) - hOff;
     const armSpread = lerp(-0.60, 0.05, armT) - Math.abs(hOff) * 0.22;
     const elbowBend = lerp(-1.80, -0.15, Math.max(0, Math.min(1, (t - 0.12) / 0.55))) - hOff * 0.35;

@@ -379,8 +379,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       }
 
       if (buntingRef.current && s.isPlayerBatting && !hasSwungRef.current) {
-        if (scene.checkBuntBallCollision(p3d)) {
-          processBuntHit(s, scene);
+        const buntCol = scene.checkBuntBallCollision(p3d);
+        if (buntCol.hit) {
+          processBuntHit(s, scene, buntCol.contactPoint);
           return;
         }
       }
@@ -491,7 +492,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     const collisionScale = DIFFICULTY_CONFIGS[s.settings.difficulty].batCollisionScale;
     if (s.isPlayerBatting) {
       if (buntingRef.current && !hasSwungRef.current) {
-        if (scene.checkBuntBallCollision(p3d)) { processBuntHit(s, scene); return; }
+        const buntCol = scene.checkBuntBallCollision(p3d);
+        if (buntCol.hit) { processBuntHit(s, scene, buntCol.contactPoint); return; }
       }
       if (scene.isSwinging()) {
         const collision = scene.checkBatBallCollision3D(p3d, collisionScale);
@@ -610,11 +612,21 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     const aimBias = (0.5 - batHeightNorm) * 0.18;
     const adjustedVertical = verticalOffset + aimBias;
 
+    const { handle, tip } = scene.getBatWorldEndpoints();
+    const batAxisH = new THREE.Vector3(tip.x - handle.x, 0, tip.z - handle.z);
+    const batAxisHLen = batAxisH.length();
+    if (batAxisHLen > 0.001) batAxisH.divideScalar(batAxisHLen);
+    const perpH = new THREE.Vector3(-batAxisH.z, 0, batAxisH.x);
+    const offsetH = new THREE.Vector3(
+      ball3DRef.current.x - contactPoint.x, 0, ball3DRef.current.z - contactPoint.z,
+    );
+    const lateralOffset = offsetH.dot(perpH);
+
     let result = calculatePhysicsHit({
       batVelX: batVel.x, batVelY: batVel.y, batVelZ: batVel.z,
       ballVelX: ballVel.x, ballVelY: ballVel.y, ballVelZ: ballVel.z,
       contactT, contactQuality: quality, batAngleY: 0,
-      verticalOffset: adjustedVertical, chargePower,
+      verticalOffset: adjustedVertical, chargePower, lateralOffset,
     });
 
     const forcedType = storeRef.current.practiceHitType;
@@ -704,9 +716,22 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   function processBuntHit(
     s: ReturnType<typeof useGameStore.getState>,
     scene: ThreeScene,
+    contactPoint: THREE.Vector3,
   ) {
     const ballVel = pitchBallVelRef.current;
-    const result = calculateBuntHit(ballVel.x, ballVel.z);
+    const verticalOffset = ball3DRef.current.y - contactPoint.y;
+
+    const { handle, tip } = scene.getBatWorldEndpoints();
+    const batAxisH = new THREE.Vector3(tip.x - handle.x, 0, tip.z - handle.z);
+    const batAxisHLen = batAxisH.length();
+    if (batAxisHLen > 0.001) batAxisH.divideScalar(batAxisHLen);
+    const perpH = new THREE.Vector3(-batAxisH.z, 0, batAxisH.x);
+    const offsetH = new THREE.Vector3(
+      ball3DRef.current.x - contactPoint.x, 0, ball3DRef.current.z - contactPoint.z,
+    );
+    const lateralOffset = offsetH.dot(perpH);
+
+    const result = calculateBuntHit(ballVel.x, ballVel.y, ballVel.z, verticalOffset, lateralOffset);
 
     hitTypeRef.current = result.type;
     hasSwungRef.current = true;
@@ -742,9 +767,10 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
     showAnnouncement('BUNT!', 1.2);
 
+    const buntHeight = Math.max(8, ball3DRef.current.y * 28);
     localBallRef.current = {
       ...localBallRef.current!,
-      position3D: { x: HOME_PLATE.x, y: HOME_PLATE.y, z: 8 },
+      position3D: { x: HOME_PLATE.x, y: HOME_PLATE.y, z: buntHeight },
       velocity3D: result.velocity,
       isInPlay: true, isLanded: false, landingPosition: null, heldByFielder: null,
     };
