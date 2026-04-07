@@ -13,7 +13,7 @@ const CANVAS_W = 900;
 const CANVAS_H = 600;
 
 const SZ = { halfW: 0.25, bottom: 0.22, top: 0.75 };
-const BAT_Y_LOW = 0.42;
+const BAT_Y_LOW = 0.45;
 const BAT_Y_HIGH = 0.73;
 
 const BBOX_HW = 0.24;
@@ -1565,17 +1565,20 @@ export class ThreeScene {
     /* bat arc in world space — tilt derived from pivot-to-target height difference */
     const angle = lerpKeyframes(S_BAT_ANGLE, t);
     const baseTiltRaw = lerpKeyframes(S_BAT_TILT, t);
-    const tiltScale = lerp(1.0, 0.2, this.batHeightNorm);
+    const lowness = Math.max(0, 0.5 - this.batHeightNorm) * 2;
+    const tiltScale = lerp(1.0, 0.2, this.batHeightNorm) * lerp(1.0, 0.45, lowness);
     const baseTilt = baseTiltRaw * tiltScale;
     const pivotY = lerp(BAT_Y_LOW, BAT_Y_HIGH, this.batHeightNorm);
     const targetY = this.sweetSpotTarget.y;
     const sweetMid = (BAT_SWEET_LO + BAT_SWEET_HI) / 2;
     const heightTilt = Math.asin(Math.max(-1, Math.min(1, (pivotY - targetY) / sweetMid)));
 
-    /* uppercut: tilt the swing plane upward — more for low pitches, less for high */
-    const uppercutBase = lerp(0.18, 0.02, this.batHeightNorm);
+    /* uppercut: tilt the swing plane upward — more for low pitches, less for high.
+     * Follow-through phase (t > 0.45) gets extra lift for low swings. */
+    const uppercutBase = lerp(0.28, 0.02, this.batHeightNorm);
     const uppercutRamp = Math.min(1, t / 0.25);
-    const uppercut = uppercutBase * uppercutRamp;
+    const followThrough = t > 0.45 ? (t - 0.45) * lerp(0.55, 0.0, this.batHeightNorm) : 0;
+    const uppercut = uppercutBase * uppercutRamp + followThrough;
 
     this.batPivot.rotation.set(uppercut, sign * angle, 0);
     const diag = sign * lerp(0.30, 0.08, t);
