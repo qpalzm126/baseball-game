@@ -172,6 +172,8 @@ export interface GameSnapshot {
 
 export type BatterSide = 'left' | 'right';
 
+export type PitcherHand = 'left' | 'right';
+
 export type Difficulty =
   | 'elementary'
   | 'middle'
@@ -234,5 +236,6 @@ export interface GameSettings {
   totalInnings: number;
   difficulty: Difficulty;
   batterSide: BatterSide;
+  pitcherHand: PitcherHand;
   fieldSize: FieldSize;
 }

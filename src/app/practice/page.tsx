@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/store/gameStore';
-import { PitchType, Difficulty, FieldSize, HitType } from '@/game/types';
+import { PitchType, Difficulty, FieldSize, HitType, PitcherHand } from '@/game/types';
 import { DIFFICULTY_CONFIGS, DIFFICULTY_ORDER, PITCH_CONFIGS, FIELD_SIZE_CONFIGS, FIELD_SIZE_ORDER } from '@/game/constants';
 import GameCanvas from '@/components/game/GameCanvas';
 
@@ -29,6 +29,7 @@ export default function PracticePage() {
   const practiceMode = useGameStore((s) => s.practiceMode);
   const currentDifficulty = useGameStore((s) => s.settings.difficulty);
   const currentFieldSize = useGameStore((s) => s.settings.fieldSize);
+  const currentPitcherHand = useGameStore((s) => s.settings.pitcherHand);
   const practicePitchType = useGameStore((s) => s.practicePitchType);
   const practiceStrikesOnly = useGameStore((s) => s.practiceStrikesOnly);
   const practiceTargetCell = useGameStore((s) => s.practiceTargetCell);
@@ -63,6 +64,10 @@ export default function PracticePage() {
 
   const handleFieldSize = (fs: FieldSize) => {
     useGameStore.getState().updateSettings({ fieldSize: fs });
+  };
+
+  const handlePitcherHand = (hand: PitcherHand) => {
+    useGameStore.getState().updateSettings({ pitcherHand: hand });
   };
 
   const handlePitchType = (type: PitchType | null) => {
@@ -152,6 +157,27 @@ export default function PracticePage() {
                   }`}
                 >
                   {FIELD_SIZE_CONFIGS[fs].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="w-px h-5 bg-gray-700" />
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Pitcher</span>
+            <div className="flex gap-1">
+              {(['right', 'left'] as PitcherHand[]).map((h) => (
+                <button
+                  key={h}
+                  onClick={() => handlePitcherHand(h)}
+                  className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
+                    currentPitcherHand === h
+                      ? 'bg-yellow-500 text-gray-900'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {h === 'right' ? 'RHP' : 'LHP'}
                 </button>
               ))}
             </div>

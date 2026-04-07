@@ -20,6 +20,7 @@ export default function MainMenu() {
     totalInnings: DEFAULT_INNINGS,
     difficulty: "college",
     batterSide: "right",
+    pitcherHand: "right",
     fieldSize: "professional",
   });
 
@@ -66,6 +67,14 @@ export default function MainMenu() {
                        transition-all border border-cyan-500/30 backdrop-blur-sm"
           >
             Practice Mode
+          </button>
+
+          <button
+            onClick={() => router.push('/viewer')}
+            className="w-full py-3 bg-indigo-600/80 hover:bg-indigo-500 text-white font-semibold rounded-xl
+                       transition-all border border-indigo-500/30 backdrop-blur-sm"
+          >
+            3D Viewer
           </button>
 
           <button

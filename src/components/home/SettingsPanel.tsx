@@ -1,6 +1,6 @@
 'use client';
 
-import { GameSettings, BatterSide } from '@/game/types';
+import { GameSettings, BatterSide, PitcherHand } from '@/game/types';
 import { DIFFICULTY_CONFIGS, DIFFICULTY_ORDER, FIELD_SIZE_CONFIGS, FIELD_SIZE_ORDER } from '@/game/constants';
 
 interface SettingsPanelProps {
@@ -59,6 +59,17 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
           {([['right', 'Right (R)'], ['left', 'Left (L)']] as [BatterSide, string][]).map(([side, label]) => (
             <button key={side} onClick={() => onChange({ ...settings, batterSide: side })}
               className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${settings.batterSide === side ? 'bg-yellow-500 text-gray-900' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">Pitcher Hand</label>
+        <div className="flex gap-2">
+          {([['right', 'Right (R)'], ['left', 'Left (L)']] as [PitcherHand, string][]).map(([hand, label]) => (
+            <button key={hand} onClick={() => onChange({ ...settings, pitcherHand: hand })}
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${settings.pitcherHand === hand ? 'bg-yellow-500 text-gray-900' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
               {label}
             </button>
           ))}

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { BatterSide } from '@/game/types';
+import type { BatterSide, PitcherHand } from '@/game/types';
 
 /* -------------- constants -------------- */
 
@@ -13,8 +13,8 @@ const CANVAS_W = 900;
 const CANVAS_H = 600;
 
 const SZ = { halfW: 0.25, bottom: 0.22, top: 0.75 };
-const BAT_Y_LOW = 0.52;
-const BAT_Y_HIGH = 0.72;
+const BAT_Y_LOW = 0.42;
+const BAT_Y_HIGH = 0.73;
 
 const BBOX_HW = 0.24;
 const BBOX_HD = 0.32;
@@ -192,8 +192,9 @@ function createBatModel(): BatModel {
 /* -------------- animation keyframes -------------- */
 
 const P_BODY_Y  = [{ t: 0, v: 0 }, { t: 0.15, v: 0.01 }, { t: 0.30, v: 0.06 }, { t: 0.50, v: 0.02 }, { t: 0.70, v: -0.02 }, { t: 0.85, v: 0 }, { t: 1, v: 0 }];
-const P_R_ARM_X = [{ t: 0, v: 0 }, { t: 0.15, v: -0.6 }, { t: 0.30, v: -1.8 }, { t: 0.50, v: -2.8 }, { t: 0.65, v: -3.6 }, { t: 0.75, v: -0.6 }, { t: 0.88, v: 0.4 }, { t: 1, v: 0 }];
-const P_R_ARM_Z = [{ t: 0, v: 0 }, { t: 0.30, v: 0.3 }, { t: 0.50, v: 0.5 }, { t: 0.65, v: -0.2 }, { t: 0.75, v: -0.4 }, { t: 0.88, v: -0.1 }, { t: 1, v: 0 }];
+const P_R_ARM_X = [{ t: 0, v: 0 }, { t: 0.15, v: -0.6 }, { t: 0.30, v: -1.6 }, { t: 0.48, v: -2.8 }, { t: 0.60, v: -3.0 }, { t: 0.72, v: -2.0 }, { t: 0.82, v: -0.6 }, { t: 0.92, v: 0.3 }, { t: 1, v: 0 }];
+const P_R_ARM_Z = [{ t: 0, v: 0 }, { t: 0.30, v: 0.3 }, { t: 0.48, v: 0.5 }, { t: 0.60, v: 0.35 }, { t: 0.72, v: 0.15 }, { t: 0.82, v: -0.2 }, { t: 0.92, v: -0.1 }, { t: 1, v: 0 }];
+const P_R_ELBOW_X = [{ t: 0, v: 0 }, { t: 0.20, v: -0.8 }, { t: 0.38, v: -1.5 }, { t: 0.55, v: -1.6 }, { t: 0.66, v: -0.8 }, { t: 0.72, v: -0.15 }, { t: 0.85, v: -0.3 }, { t: 1, v: 0 }];
 const P_L_LEG_X = [{ t: 0, v: 0 }, { t: 0.20, v: 0.6 }, { t: 0.35, v: 1.1 }, { t: 0.50, v: 0.4 }, { t: 0.65, v: -0.1 }, { t: 0.80, v: -0.2 }, { t: 1, v: 0 }];
 const P_HIP_Y   = [{ t: 0, v: 0 }, { t: 0.40, v: 0 }, { t: 0.55, v: -0.5 }, { t: 0.70, v: -0.7 }, { t: 0.85, v: -0.3 }, { t: 1, v: 0 }];
 const P_L_ARM_X = [{ t: 0, v: 0 }, { t: 0.15, v: -0.5 }, { t: 0.30, v: -1.2 }, { t: 0.55, v: -0.3 }, { t: 0.75, v: 0.2 }, { t: 1, v: 0 }];
@@ -206,7 +207,8 @@ const S_FRONT_LEG   = [{ t: 0, v: 0 }, { t: 0.12, v: 0.15 }, { t: 0.30, v: -0.10
 /*
  * Bat is parented to battingGroup (world space) during swing.
  * bat.group.rotation.x = PI/2 lays it horizontal (local +Y → world +Z).
- * batPivot.rotation.y sweeps the horizontal bat in the XZ plane.
+ * batPivot.rotation.y sweeps the bat in the XZ plane.
+ * batPivot.rotation.x tilts the swing plane upward (uppercut angle).
  * Angle INCREASES: bat starts behind batter, sweeps forward through z=0.
  *
  * Right-handed (sign=1, bx=-0.45, pivotZ=0.20):
@@ -214,8 +216,9 @@ const S_FRONT_LEG   = [{ t: 0, v: 0 }, { t: 0.12, v: 0.15 }, { t: 0.30, v: -0.10
  *   Tip crosses z=0 at angle ≈ 1.84  →  sweet spot at a ≈ 2.0.
  */
 const S_BAT_ANGLE   = [{ t: 0, v: 0.40 }, { t: 0.10, v: 0.35 }, { t: 0.22, v: 0.80 }, { t: 0.33, v: 1.35 }, { t: 0.42, v: 1.80 }, { t: 0.50, v: 2.15 }, { t: 0.60, v: 2.55 }, { t: 0.75, v: 2.90 }, { t: 0.90, v: 3.10 }, { t: 1, v: 3.15 }];
-/* slight tilt variation */
-const S_BAT_TILT    = [{ t: 0, v: 0.25 }, { t: 0.25, v: 0.18 }, { t: 0.42, v: 0.10 }, { t: 0.70, v: 0.0 }, { t: 1, v: -0.06 }];
+/* barrel vertical path: positive = barrel below hands, negative = barrel above hands.
+ * Mimics real swing: barrel drops behind the body, then rises up through the zone. */
+const S_BAT_TILT    = [{ t: 0, v: 0.30 }, { t: 0.15, v: 0.38 }, { t: 0.28, v: 0.22 }, { t: 0.38, v: 0.05 }, { t: 0.48, v: -0.10 }, { t: 0.60, v: -0.22 }, { t: 0.75, v: -0.35 }, { t: 1, v: -0.42 }];
 const SWING_CONTACT_LO = 0.35;
 const SWING_CONTACT_HI = 0.58;
 const SWING_DURATION = 0.22;
@@ -253,6 +256,7 @@ export class ThreeScene {
   private pitcherAnimT = 0;
   private pitcherReleased = false;
   private pitcherZ = -6.4;
+  private pitcherHand: PitcherHand = 'right';
   private moundMesh: THREE.Mesh | null = null;
   private rubberMesh: THREE.Mesh | null = null;
 
@@ -273,6 +277,7 @@ export class ThreeScene {
   /* ball */
   private ballMesh: THREE.Mesh;
   private ballTrail: THREE.Points;
+  private ballTrailMat: THREE.PointsMaterial;
   private trailPositions: THREE.Vector3[] = [];
   private ballShadow: THREE.Mesh;
 
@@ -358,7 +363,8 @@ export class ThreeScene {
 
     const trailGeo = new THREE.BufferGeometry();
     trailGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(30 * 3), 3));
-    this.ballTrail = new THREE.Points(trailGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.018, transparent: true, opacity: 0.4 }));
+    this.ballTrailMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.022, transparent: true, opacity: 0.55 });
+    this.ballTrail = new THREE.Points(trailGeo, this.ballTrailMat);
     this.ballTrail.visible = false;
     this.scene.add(this.ballTrail);
 
@@ -375,6 +381,8 @@ export class ThreeScene {
   }
 
   getDomElement() { return this.renderer.domElement; }
+  getCamera() { return this.camera; }
+  getRendererDom() { return this.renderer.domElement; }
 
   /* --------- environment --------- */
 
@@ -722,6 +730,14 @@ export class ThreeScene {
 
   getPitcherZ(): number { return this.pitcherZ; }
 
+  setPitcherHand(hand: PitcherHand) {
+    if (this.pitcherHand === hand) return;
+    this.pitcherHand = hand;
+    this.resetPitcherAnimation();
+  }
+
+  getPitcherHand(): PitcherHand { return this.pitcherHand; }
+
   private buildStrikeZone() {
     const szGroup = new THREE.Group();
     const w = SZ.halfW * 2, h = SZ.top - SZ.bottom;
@@ -775,48 +791,54 @@ export class ThreeScene {
 
     const hR = BAT_HANDLE_R;
     const bR = BAT_BARREL_R;
-    const handleLen = 0.20;
-    const taperLen = 0.10;
+    const knobR = 0.022;
+    const handleLen = 0.28;
+    const taperLen = 0.12;
     const barrelLen = 0.30;
+    const capR = bR;
+
+    const sweetMid = (BAT_SWEET_LO + BAT_SWEET_HI) / 2;
 
     const batShape = new THREE.Shape();
-    batShape.moveTo(0, -hR);
+    batShape.moveTo(0, -knobR);
+    batShape.quadraticCurveTo(-knobR * 0.5, -knobR, 0, -hR);
     batShape.lineTo(handleLen, -hR);
     batShape.lineTo(handleLen + taperLen, -bR);
     batShape.lineTo(handleLen + taperLen + barrelLen, -bR);
-    batShape.quadraticCurveTo(handleLen + taperLen + barrelLen + bR, 0, handleLen + taperLen + barrelLen, bR);
+    batShape.quadraticCurveTo(handleLen + taperLen + barrelLen + capR, 0,
+      handleLen + taperLen + barrelLen, bR);
     batShape.lineTo(handleLen + taperLen, bR);
     batShape.lineTo(handleLen, hR);
     batShape.lineTo(0, hR);
-    batShape.quadraticCurveTo(-hR, 0, 0, -hR);
+    batShape.quadraticCurveTo(-knobR * 0.5, knobR, 0, knobR);
+    batShape.quadraticCurveTo(-knobR, 0, 0, -knobR);
 
     const batGeo = new THREE.ShapeGeometry(batShape);
     const batMat = new THREE.MeshBasicMaterial({
-      color: 0xc49a3c, transparent: true, opacity: 0.30,
+      color: 0xc49a3c, transparent: true, opacity: 0.28,
       depthTest: false, side: THREE.DoubleSide,
     });
     const batMesh = new THREE.Mesh(batGeo, batMat);
-    const sweetCenter = handleLen + taperLen + barrelLen * 0.45;
-    batMesh.position.x = -sweetCenter;
+    batMesh.position.x = -sweetMid;
     g.add(batMesh);
 
-    const batOutlinePts = batShape.getPoints(32);
+    const batOutlinePts = batShape.getPoints(48);
     const outlineGeo = new THREE.BufferGeometry().setFromPoints(
-      batOutlinePts.map(p => new THREE.Vector3(p.x - sweetCenter, p.y, 0)),
+      batOutlinePts.map(p => new THREE.Vector3(p.x - sweetMid, p.y, 0)),
     );
     g.add(new THREE.Line(outlineGeo,
-      new THREE.LineBasicMaterial({ color: 0xd4a843, transparent: true, opacity: 0.55 })));
+      new THREE.LineBasicMaterial({ color: 0xd4a843, transparent: true, opacity: 0.50 })));
 
-    const ssW = barrelLen * 0.4;
+    const ssLeft = BAT_SWEET_LO - sweetMid;
+    const ssRight = BAT_SWEET_HI - sweetMid;
     const ssShape = new THREE.Shape();
-    const ssLeft = handleLen + taperLen + barrelLen * 0.25 - sweetCenter;
     ssShape.moveTo(ssLeft, -bR * 0.95);
-    ssShape.lineTo(ssLeft + ssW, -bR * 0.95);
-    ssShape.lineTo(ssLeft + ssW, bR * 0.95);
+    ssShape.lineTo(ssRight, -bR * 0.95);
+    ssShape.lineTo(ssRight, bR * 0.95);
     ssShape.lineTo(ssLeft, bR * 0.95);
     ssShape.closePath();
     g.add(new THREE.Mesh(new THREE.ShapeGeometry(ssShape),
-      new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.22, depthTest: false })));
+      new THREE.MeshBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.18, depthTest: false })));
 
     const dot = new THREE.Mesh(
       new THREE.CircleGeometry(0.010, 12),
@@ -936,7 +958,7 @@ export class ThreeScene {
     const ty = Math.max(SZ.bottom - yMargin, Math.min(SZ.top + yMargin, hit.y));
 
     this.sweetSpotTarget.set(tx, ty);
-    const batNormY = Math.max(0, Math.min(1, (ty - (SZ.bottom - yRange * 0.15)) / (yRange * 1.3)));
+    const batNormY = Math.max(0, Math.min(1, (ty - SZ.bottom) / yRange));
     this.batHeightNorm = batNormY;
     if (this.swingT < 0) {
       this.setBatHeight(batNormY);
@@ -953,15 +975,33 @@ export class ThreeScene {
     if (!this.reticle.visible) return;
     const sign = this.batterSide === 'right' ? 1 : -1;
     this.reticle.scale.x = sign;
-    this.reticle.position.set(this.sweetSpotTarget.x, this.sweetSpotTarget.y, 0.02);
+
+    const batY = lerp(BAT_Y_LOW, BAT_Y_HIGH, this.batHeightNorm);
+    const ghostY = this.sweetSpotTarget.y;
+
+    const batterX = this.batter.root.position.x;
+    const sweetMid = (BAT_SWEET_LO + BAT_SWEET_HI) / 2;
+    const handleExtent = sweetMid;
+    const posSign = this.batterSide === 'right' ? -1 : 1;
+    const bodyEdge = batterX - posSign * 0.08;
+    let sx = this.sweetSpotTarget.x;
+    const handleEnd = sx - sign * handleExtent;
+    if (sign > 0 && handleEnd < bodyEdge) sx = bodyEdge + sign * handleExtent;
+    if (sign < 0 && handleEnd > bodyEdge) sx = bodyEdge + sign * handleExtent;
+
+    this.reticle.position.set(sx, ghostY, 0.02);
 
     const chest = this.getChestPivot();
     const dx = this.sweetSpotTarget.x - chest.x;
-    const dy = this.sweetSpotTarget.y - chest.y;
-    this.reticle.rotation.z = Math.atan2(sign * dy, sign * dx);
+
+    /* Tilt derived from the bat pivot-to-target height difference:
+     * the bat barrel must dip/rise from batY to reach ghostY. */
+    const yDiff = ghostY - batY;
+    const tiltAngle = Math.asin(Math.max(-1, Math.min(1, yDiff / sweetMid)));
+    const reticleTilt = Math.max(-0.55, Math.min(0.30, tiltAngle));
+    this.reticle.rotation.z = reticleTilt;
 
     const { front, behind } = this.getReachLimits();
-    const posSign = this.batterSide === 'right' ? -1 : 1;
     const isBehind = dx !== 0 && Math.sign(dx) === posSign;
     const limit = isBehind ? behind : front;
     const reachRatio = limit > 0 ? Math.abs(dx) / limit : 1;
@@ -1114,6 +1154,7 @@ export class ThreeScene {
       return;
     }
     this.currentMode = 'batting';
+    this.pitcher.root.visible = true;
     this.camPosFrom.copy(this.camera.position);
     this.camLookFrom.copy(this.camLookCur);
     this.camPosTo.copy(this.getBattingCamPos());
@@ -1133,6 +1174,7 @@ export class ThreeScene {
       return;
     }
     this.currentMode = 'fielding';
+    this.pitcher.root.visible = false;
     this.camPosFrom.copy(this.camera.position);
     this.camLookFrom.copy(this.camLookCur);
     this.camPosTo.set(0, 50, 2);
@@ -1147,6 +1189,11 @@ export class ThreeScene {
   }
 
   private fielderLabelsVisible = false;
+
+  setFielderLabelsVisible(v: boolean) {
+    this.fielderLabelsVisible = v;
+    this.applyFielderVisibility();
+  }
 
   private applyFielderVisibility() {
     const show = this.fielderLabelsVisible;
@@ -1226,7 +1273,7 @@ export class ThreeScene {
     this.batPivot.rotation.set(0, sign * -0.40, 0);
   }
 
-  private positionBatter() {
+  positionBatter() {
     const posSign = this.batterSide === 'right' ? -1 : 1;
     const bx = posSign * 0.55 + this.batterXOffset;
     this.batter.root.position.set(bx, 0, 0.45 + this.batterZOffset);
@@ -1276,14 +1323,20 @@ export class ThreeScene {
     return ballPos.y > 0.05 && ballPos.y < 1.0;
   }
 
-  resetBatter() {
+  resetBatter(visible = true) {
     this.batterXOffset = 0;
     this.batterZOffset = 0;
     this.batHeightNorm = 0.5;
     this.swingT = -1;
     this._bunting = false;
     this.positionBatter();
-    this.setBatterVisible(true);
+    this.setBatterVisible(visible);
+  }
+
+  resetSwing() {
+    this.swingT = -1;
+    this._bunting = false;
+    this.attachBatToHand();
   }
 
   setBatterVisible(visible: boolean) {
@@ -1387,12 +1440,18 @@ export class ThreeScene {
     this.pitcherAnimT += dt * speed;
     if (this.pitcherAnimT > 1) this.pitcherAnimT = 1;
     const t = this.pitcherAnimT;
+    const lhp = this.pitcherHand === 'left';
     this.pitcher.root.position.y = lerpKeyframes(P_BODY_Y, t);
-    this.pitcher.rShoulder.rotation.x = lerpKeyframes(P_R_ARM_X, t);
-    this.pitcher.rShoulder.rotation.z = lerpKeyframes(P_R_ARM_Z, t);
-    this.pitcher.lShoulder.rotation.x = lerpKeyframes(P_L_ARM_X, t);
-    this.pitcher.lHip.rotation.x = lerpKeyframes(P_L_LEG_X, t);
-    this.pitcher.hipJoint.rotation.y = lerpKeyframes(P_HIP_Y, t);
+    const throwShoulder = lhp ? this.pitcher.lShoulder : this.pitcher.rShoulder;
+    const throwElbow = lhp ? this.pitcher.lElbow : this.pitcher.rElbow;
+    const gloveShoulder = lhp ? this.pitcher.rShoulder : this.pitcher.lShoulder;
+    const strideLeg = lhp ? this.pitcher.rHip : this.pitcher.lHip;
+    throwShoulder.rotation.x = lerpKeyframes(P_R_ARM_X, t);
+    throwShoulder.rotation.z = lerpKeyframes(P_R_ARM_Z, t) * (lhp ? -1 : 1);
+    throwElbow.rotation.x = lerpKeyframes(P_R_ELBOW_X, t);
+    gloveShoulder.rotation.x = lerpKeyframes(P_L_ARM_X, t);
+    strideLeg.rotation.x = lerpKeyframes(P_L_LEG_X, t);
+    this.pitcher.hipJoint.rotation.y = lerpKeyframes(P_HIP_Y, t) * (lhp ? -1 : 1);
     if (!this.pitcherReleased && t >= PITCH_RELEASE_T) {
       this.pitcherReleased = true;
       return true;
@@ -1407,6 +1466,7 @@ export class ThreeScene {
     this.pitcher.lShoulder.rotation.set(0, 0, 0);
     this.pitcher.rElbow.rotation.set(0, 0, 0);
     this.pitcher.lElbow.rotation.set(0, 0, 0);
+    this.pitcher.rHip.rotation.set(0, 0, 0);
     this.pitcher.lHip.rotation.set(0, 0, 0);
     this.pitcher.hipJoint.rotation.set(0, 0, 0);
   }
@@ -1414,26 +1474,29 @@ export class ThreeScene {
   isPitchReleased() { return this.pitcherReleased; }
 
   getPitcherReleasePos(): THREE.Vector3 {
-    this.pitcher.rElbow.updateWorldMatrix(true, false);
+    const elbow = this.pitcherHand === 'left' ? this.pitcher.lElbow : this.pitcher.rElbow;
+    elbow.updateWorldMatrix(true, false);
     const handLocal = new THREE.Vector3(0, -FOREARM_LEN, 0);
-    return this.pitcher.rElbow.localToWorld(handLocal);
+    return elbow.localToWorld(handLocal);
   }
 
   private getPitcherReleasePosSim(): THREE.Vector3 {
     const t = PITCH_RELEASE_T;
+    const lhp = this.pitcherHand === 'left';
     const bodyY = lerpKeyframes(P_BODY_Y, t);
     const hipY = 0.48;
     const shoulderLocalY = 0.30;
-    const shoulderLocalX = 0.16;
-    const armLen = UPPER_ARM_LEN + FOREARM_LEN;
+    const shoulderLocalX = lhp ? -0.16 : 0.16;
 
     const armRotX = lerpKeyframes(P_R_ARM_X, t);
-    const armRotZ = lerpKeyframes(P_R_ARM_Z, t);
-    const hipRotY = lerpKeyframes(P_HIP_Y, t);
+    const armRotZ = lerpKeyframes(P_R_ARM_Z, t) * (lhp ? -1 : 1);
+    const elbowRotX = lerpKeyframes(P_R_ELBOW_X, t);
+    const hipRotY = lerpKeyframes(P_HIP_Y, t) * (lhp ? -1 : 1);
 
+    const totalForearmAngle = armRotX + elbowRotX;
     const handX = 0;
-    const handY = -armLen * Math.cos(armRotX);
-    const handZ = armLen * Math.sin(armRotX);
+    const handY = -UPPER_ARM_LEN * Math.cos(armRotX) - FOREARM_LEN * Math.cos(totalForearmAngle);
+    const handZ = UPPER_ARM_LEN * Math.sin(armRotX) + FOREARM_LEN * Math.sin(totalForearmAngle);
 
     const cosZ = Math.cos(armRotZ), sinZ = Math.sin(armRotZ);
     const rx = handX * cosZ - handY * sinZ;
@@ -1499,12 +1562,22 @@ export class ThreeScene {
     const frontLeg = this.batterSide === 'right' ? this.batter.lHip : this.batter.rHip;
     frontLeg.rotation.x = lerpKeyframes(S_FRONT_LEG, t) + kneeBend;
 
-    /* bat arc in world space — tilt varies with cursor height */
+    /* bat arc in world space — tilt derived from pivot-to-target height difference */
     const angle = lerpKeyframes(S_BAT_ANGLE, t);
-    const baseTilt = lerpKeyframes(S_BAT_TILT, t);
-    const rawTilt = (0.5 - this.batHeightNorm) * 0.90;
-    const heightTilt = Math.max(-0.55, Math.min(0.55, rawTilt));
-    this.batPivot.rotation.set(0, sign * angle, 0);
+    const baseTiltRaw = lerpKeyframes(S_BAT_TILT, t);
+    const tiltScale = lerp(1.0, 0.2, this.batHeightNorm);
+    const baseTilt = baseTiltRaw * tiltScale;
+    const pivotY = lerp(BAT_Y_LOW, BAT_Y_HIGH, this.batHeightNorm);
+    const targetY = this.sweetSpotTarget.y;
+    const sweetMid = (BAT_SWEET_LO + BAT_SWEET_HI) / 2;
+    const heightTilt = Math.asin(Math.max(-1, Math.min(1, (pivotY - targetY) / sweetMid)));
+
+    /* uppercut: tilt the swing plane upward — more for low pitches, less for high */
+    const uppercutBase = lerp(0.18, 0.02, this.batHeightNorm);
+    const uppercutRamp = Math.min(1, t / 0.25);
+    const uppercut = uppercutBase * uppercutRamp;
+
+    this.batPivot.rotation.set(uppercut, sign * angle, 0);
     const diag = sign * lerp(0.30, 0.08, t);
     this.bat.group.rotation.set(Math.PI / 2 + baseTilt + heightTilt, 0, diag);
 
@@ -1558,7 +1631,23 @@ export class ThreeScene {
     this.ballTrail.visible = this.trailPositions.length > 2;
   }
 
-  clearTrail() { this.trailPositions.length = 0; this.ballTrail.visible = false; }
+  clearTrail() { this.trailPositions.length = 0; this.ballTrail.visible = false; this.setTrailColor('white'); }
+
+  setTrailColor(color: 'flight' | 'landed' | 'white') {
+    if (color === 'flight') {
+      this.ballTrailMat.color.setHex(0xff8c00);
+      this.ballTrailMat.opacity = 0.75;
+      this.ballTrailMat.size = 0.026;
+    } else if (color === 'landed') {
+      this.ballTrailMat.color.setHex(0xffffff);
+      this.ballTrailMat.opacity = 0.55;
+      this.ballTrailMat.size = 0.022;
+    } else {
+      this.ballTrailMat.color.setHex(0xffffff);
+      this.ballTrailMat.opacity = 0.55;
+      this.ballTrailMat.size = 0.022;
+    }
+  }
 
   updateBallFromGameCoords(gx: number, gy: number, height: number) {
     this.updateBall3D(gameBallToThree(gx, gy, height), true);

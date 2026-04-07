@@ -69,6 +69,10 @@ export default function GameCanvas() {
   }, [store.settings.batterSide]);
 
   useEffect(() => {
+    sceneRef.current?.setPitcherHand(store.settings.pitcherHand);
+  }, [store.settings.pitcherHand]);
+
+  useEffect(() => {
     const cfg = FIELD_SIZE_CONFIGS[store.settings.fieldSize];
     sceneRef.current?.setFieldSize(cfg.wallRadiusGU, cfg.wallHeightGU, cfg.moundDistanceFt);
   }, [store.settings.fieldSize]);
@@ -81,6 +85,7 @@ export default function GameCanvas() {
     const threeScene = new ThreeScene(container);
     sceneRef.current = threeScene;
     threeScene.setBatterSide(storeRef.current.settings.batterSide);
+    threeScene.setPitcherHand(storeRef.current.settings.pitcherHand);
     const initFieldCfg = FIELD_SIZE_CONFIGS[storeRef.current.settings.fieldSize];
     threeScene.setFieldSize(initFieldCfg.wallRadiusGU, initFieldCfg.wallHeightGU, initFieldCfg.moundDistanceFt);
     inputRef.current.attach(threeScene.getDomElement());
@@ -122,6 +127,8 @@ export default function GameCanvas() {
           <span>{store.settings.totalInnings} innings</span>
           <span className="text-gray-700">|</span>
           <span>{store.settings.batterSide === 'right' ? 'Right' : 'Left'} batting</span>
+          <span className="text-gray-700">|</span>
+          <span>{store.settings.pitcherHand === 'right' ? 'RHP' : 'LHP'}</span>
         </div>
       )}
       <div className="relative">

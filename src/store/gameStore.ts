@@ -121,7 +121,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   runners: [],
   fielders: createFielders(),
   ball: initialBallState(),
-  settings: { totalInnings: DEFAULT_INNINGS, difficulty: 'college', batterSide: 'right', fieldSize: 'professional' },
+  settings: { totalInnings: DEFAULT_INNINGS, difficulty: 'college', batterSide: 'right', pitcherHand: 'right', fieldSize: 'professional' },
   selectedPitch: null,
   speedBarValue: null,
   targetCell: null,

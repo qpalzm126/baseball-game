@@ -34,6 +34,10 @@ export default function PauseMenu({ onResume, onQuit, onRestart, settings }: Pau
             <span className="text-gray-500">Batting</span>
             <span className="text-gray-300 font-bold">{settings.batterSide === 'right' ? 'Right' : 'Left'}</span>
           </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500">Pitcher</span>
+            <span className="text-gray-300 font-bold">{settings.pitcherHand === 'right' ? 'RHP' : 'LHP'}</span>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3">
