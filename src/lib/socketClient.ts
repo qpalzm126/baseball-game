@@ -9,7 +9,7 @@ function getServerUrl(): string {
   if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_SOCKET_URL) {
     return process.env.NEXT_PUBLIC_SOCKET_URL;
   }
-  return 'http://localhost:3001';
+  return 'http://localhost:4000';
 }
 
 export function getSocket(): TypedSocket {
@@ -25,6 +25,7 @@ export function getSocket(): TypedSocket {
 export function connectSocket(): TypedSocket {
   const s = getSocket();
   if (!s.connected) {
+    console.log(`[pvp] connecting to: ${getServerUrl()}`);
     s.connect();
   }
   return s;

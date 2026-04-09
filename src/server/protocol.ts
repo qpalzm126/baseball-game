@@ -123,6 +123,8 @@ export interface ClientToServerEvents {
   throw_command: (payload: ThrowCommandPayload) => void;
   play_resolved: (payload: PlayResolvedPayload) => void;
   game_state_sync: (payload: GameStateSyncPayload) => void;
+  pause_game: () => void;
+  unpause_game: () => void;
   forfeit: () => void;
 }
 
@@ -141,6 +143,8 @@ export interface ServerToClientEvents {
   game_state_sync: (payload: GameStateSyncPayload) => void;
   opponent_disconnected: (payload: OpponentDisconnectedPayload) => void;
   opponent_reconnected: () => void;
+  game_paused: (payload: { pausedBy: string }) => void;
+  game_unpaused: () => void;
   forfeit: (payload: ForfeitPayload) => void;
   error: (payload: { message: string }) => void;
 }

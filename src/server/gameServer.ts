@@ -45,8 +45,11 @@ export function attachGameServer(httpServer: HTTPServer, allowedOrigins?: string
     });
 
     socket.on('join_room', (payload) => {
+      console.log(`[pvp] join_room attempt: code=${payload.roomCode}, player=${payload.playerName}, socket=${socket.id}`);
       const room = joinRoom(payload.roomCode, socket.id, payload.playerName);
       if (!room) {
+        const existing = getRoom(payload.roomCode);
+        console.log(`[pvp] join FAILED: code=${payload.roomCode}, roomExists=${!!existing}, hasGuest=${!!existing?.guest}`);
         socket.emit('error', { message: 'Room not found or already full' });
         return;
       }
@@ -134,6 +137,22 @@ export function attachGameServer(httpServer: HTTPServer, allowedOrigins?: string
       const room = getRoomBySocketId(socket.id);
       if (!room) return;
       socket.to(room.code).emit('game_state_sync', payload);
+    });
+
+    socket.on('pause_game', () => {
+      const room = getRoomBySocketId(socket.id);
+      if (!room) return;
+      const player = getPlayer(room, socket.id);
+      if (!player) return;
+      socket.to(room.code).emit('game_paused', { pausedBy: player.name });
+      console.log(`[pvp] game paused by ${player.name} in room ${room.code}`);
+    });
+
+    socket.on('unpause_game', () => {
+      const room = getRoomBySocketId(socket.id);
+      if (!room) return;
+      socket.to(room.code).emit('game_unpaused');
+      console.log(`[pvp] game unpaused in room ${room.code}`);
     });
 
     socket.on('forfeit', () => {

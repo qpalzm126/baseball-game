@@ -24,6 +24,8 @@ export interface MultiplayerStore {
   opponentDisconnected: boolean;
   reconnectDeadline: number | null;
   forfeitWinner: 'home' | 'away' | null;
+  /** Name of the player who paused, or null if not paused remotely */
+  remotePausedBy: string | null;
 
   /** Queued events from the remote player, consumed by game loop */
   remotePitch: PitchCommittedPayload | null;
@@ -43,6 +45,7 @@ export interface MultiplayerStore {
   setOpponentDisconnected: (disc: boolean) => void;
   setReconnectDeadline: (deadline: number | null) => void;
   setForfeitWinner: (winner: 'home' | 'away' | null) => void;
+  setRemotePausedBy: (name: string | null) => void;
 
   setRemotePitch: (p: PitchCommittedPayload | null) => void;
   setRemoteAtBatResult: (r: AtBatResultPayload | null) => void;
@@ -68,6 +71,7 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
   opponentDisconnected: false,
   reconnectDeadline: null,
   forfeitWinner: null,
+  remotePausedBy: null,
 
   remotePitch: null,
   remoteAtBatResult: null,
@@ -86,6 +90,7 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
   setOpponentDisconnected: (disc) => set({ opponentDisconnected: disc }),
   setReconnectDeadline: (deadline) => set({ reconnectDeadline: deadline }),
   setForfeitWinner: (winner) => set({ forfeitWinner: winner }),
+  setRemotePausedBy: (name) => set({ remotePausedBy: name }),
 
   setRemotePitch: (p) => set({ remotePitch: p }),
   setRemoteAtBatResult: (r) => set({ remoteAtBatResult: r }),
@@ -126,6 +131,7 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
     opponentDisconnected: false,
     reconnectDeadline: null,
     forfeitWinner: null,
+    remotePausedBy: null,
     remotePitch: null,
     remoteAtBatResult: null,
     remoteThrowCommands: [],

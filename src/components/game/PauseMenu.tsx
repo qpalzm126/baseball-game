@@ -1,5 +1,6 @@
 import { GameSettings } from '@/game/types';
 import { DIFFICULTY_CONFIGS, FIELD_SIZE_CONFIGS } from '@/game/constants';
+import { useMultiplayerStore } from '@/store/multiplayerStore';
 
 interface PauseMenuProps {
   onResume: () => void;
@@ -11,11 +12,25 @@ interface PauseMenuProps {
 export default function PauseMenu({ onResume, onQuit, onRestart, settings }: PauseMenuProps) {
   const diff = DIFFICULTY_CONFIGS[settings.difficulty];
   const field = FIELD_SIZE_CONFIGS[settings.fieldSize];
+  const remotePausedBy = useMultiplayerStore((s) => s.remotePausedBy);
+  const isMultiplayer = useMultiplayerStore((s) => s.isMultiplayer);
+  const isRemotePause = isMultiplayer && !!remotePausedBy;
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
       <div className="bg-gray-900/95 border border-gray-600/50 rounded-2xl p-8 max-w-xs w-full mx-4 shadow-2xl">
-        <h2 className="text-white font-bold text-xl text-center mb-4">PAUSED</h2>
+        <h2 className="text-white font-bold text-xl text-center mb-4">
+          {isRemotePause ? 'OPPONENT PAUSED' : 'PAUSED'}
+        </h2>
+
+        {isRemotePause && (
+          <div className="flex items-center justify-center gap-2 mb-5 text-gray-400">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+            <span className="text-sm">
+              {remotePausedBy} paused the game
+            </span>
+          </div>
+        )}
 
         <div className="bg-gray-800/60 rounded-lg px-3 py-2.5 mb-5 space-y-1">
           <div className="flex justify-between text-xs">
@@ -40,27 +55,39 @@ export default function PauseMenu({ onResume, onQuit, onRestart, settings }: Pau
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={onResume}
-            className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold rounded-xl transition-all hover:scale-[1.02] text-sm"
-          >
-            Resume
-          </button>
-          <button
-            onClick={onRestart}
-            className="w-full py-3 bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold rounded-xl transition-all hover:scale-[1.02] text-sm"
-          >
-            Restart (New Settings)
-          </button>
-          <button
-            onClick={onQuit}
-            className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold rounded-xl transition-all hover:scale-[1.02] text-sm"
-          >
-            Quit to Menu
-          </button>
-        </div>
-        <p className="text-gray-600 text-[10px] text-center mt-4">Press <kbd className="px-1 py-0.5 bg-gray-800 rounded text-gray-400">Esc</kbd> to resume</p>
+        {isRemotePause ? (
+          <p className="text-gray-500 text-xs text-center">
+            Waiting for {remotePausedBy} to resume...
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={onResume}
+                className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold rounded-xl transition-all hover:scale-[1.02] text-sm"
+              >
+                Resume
+              </button>
+              {!isMultiplayer && (
+                <>
+                  <button
+                    onClick={onRestart}
+                    className="w-full py-3 bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold rounded-xl transition-all hover:scale-[1.02] text-sm"
+                  >
+                    Restart (New Settings)
+                  </button>
+                  <button
+                    onClick={onQuit}
+                    className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold rounded-xl transition-all hover:scale-[1.02] text-sm"
+                  >
+                    Quit to Menu
+                  </button>
+                </>
+              )}
+            </div>
+            <p className="text-gray-600 text-[10px] text-center mt-4">Press <kbd className="px-1 py-0.5 bg-gray-800 rounded text-gray-400">Esc</kbd> to resume</p>
+          </>
+        )}
       </div>
     </div>
   );

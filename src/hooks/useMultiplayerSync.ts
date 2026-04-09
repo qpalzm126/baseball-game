@@ -45,6 +45,14 @@ export function useMultiplayerSync() {
       mp.getState().setReconnectDeadline(null);
     });
 
+    socket.on('game_paused', (payload) => {
+      mp.getState().setRemotePausedBy(payload.pausedBy);
+    });
+
+    socket.on('game_unpaused', () => {
+      mp.getState().setRemotePausedBy(null);
+    });
+
     socket.on('forfeit', (payload) => {
       mp.getState().setForfeitWinner(payload.winner);
       useGameStore.getState().endGame();
@@ -57,6 +65,8 @@ export function useMultiplayerSync() {
       socket.off('throw_command');
       socket.off('opponent_disconnected');
       socket.off('opponent_reconnected');
+      socket.off('game_paused');
+      socket.off('game_unpaused');
       socket.off('forfeit');
     };
   }, []);

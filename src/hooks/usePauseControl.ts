@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/store/gameStore';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
+import { getSocket } from '@/lib/socketClient';
 import { GamePhase } from '@/game/types';
 
 export function usePauseControl() {
@@ -11,11 +12,20 @@ export function usePauseControl() {
   const router = useRouter();
 
   const store = useGameStore();
+  const remotePausedBy = useMultiplayerStore((s) => s.remotePausedBy);
+
+  const isMP = () => useMultiplayerStore.getState().isMultiplayer;
 
   const togglePause = useCallback(() => {
+    const mp = useMultiplayerStore.getState();
+    if (mp.isMultiplayer && mp.remotePausedBy) return;
+
     setPaused((prev) => {
       const next = !prev;
       pausedRef.current = next;
+      if (mp.isMultiplayer) {
+        getSocket().emit(next ? 'pause_game' : 'unpause_game');
+      }
       return next;
     });
   }, []);
@@ -23,6 +33,9 @@ export function usePauseControl() {
   const resumeGame = useCallback(() => {
     setPaused(false);
     pausedRef.current = false;
+    if (isMP()) {
+      getSocket().emit('unpause_game');
+    }
   }, []);
 
   const quitGame = useCallback(() => {
@@ -36,8 +49,18 @@ export function usePauseControl() {
     router.push('/');
   }, [resumeGame, router]);
 
+  // Sync pausedRef when opponent pauses/unpauses
   useEffect(() => {
-    const isMP = () => useMultiplayerStore.getState().isMultiplayer;
+    if (remotePausedBy) {
+      pausedRef.current = true;
+      setPaused(true);
+    } else {
+      pausedRef.current = false;
+      setPaused(false);
+    }
+  }, [remotePausedBy]);
+
+  useEffect(() => {
     const onVisChange = () => {
       if (isMP()) return;
       windowHiddenRef.current = document.hidden;
