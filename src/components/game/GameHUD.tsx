@@ -7,11 +7,12 @@ interface GameHUDProps {
   hasSwung: boolean;
   ballReleased: boolean;
   bunting: boolean;
+  deadBall: boolean;
   pitchInfoDisplay: string | null;
   announcement: string | null;
 }
 
-function KeyHints({ phase, isPlayerBatting, isPractice }: { phase: GamePhase; isPlayerBatting: boolean; isPractice: boolean }) {
+function KeyHints({ phase, isPlayerBatting, isPractice, deadBall }: { phase: GamePhase; isPlayerBatting: boolean; isPractice: boolean; deadBall: boolean }) {
   const isFieldPhase = phase === GamePhase.BallInPlay || phase === GamePhase.Fielding;
   const isBattingPhase = phase === GamePhase.PrePitch || phase === GamePhase.Pitching || phase === GamePhase.BatSwing;
 
@@ -20,9 +21,9 @@ function KeyHints({ phase, isPlayerBatting, isPractice }: { phase: GamePhase; is
   if (isPlayerBatting && isBattingPhase) {
     lines.push('WASD Move \u00B7 Q/E Rotate');
     lines.push('Space/Click Swing \u00B7 B Bunt \u00B7 Tab Switch Side');
-  } else if (isPlayerBatting && isFieldPhase) {
+  } else if (isPlayerBatting && isFieldPhase && !deadBall) {
     lines.push('F/\u2191 Advance \u00B7 G/\u2193 Retreat');
-  } else if (!isPlayerBatting && isFieldPhase) {
+  } else if (!isPlayerBatting && isFieldPhase && !deadBall) {
     lines.push('Z 1B \u00B7 X 2B \u00B7 C 3B \u00B7 V Home');
   } else if (!isPlayerBatting && phase === GamePhase.PrePitch) {
     lines.push('Select pitch type \u2192 Aim \u2192 Accuracy \u2192 Power');
@@ -51,6 +52,7 @@ export default function GameHUD({
   hasSwung,
   ballReleased,
   bunting,
+  deadBall,
   pitchInfoDisplay,
   announcement,
 }: GameHUDProps) {
@@ -78,7 +80,7 @@ export default function GameHUD({
         </div>
       )}
 
-      {!isPractice && isFieldPhase && isPlayerBatting && (
+      {!isPractice && isFieldPhase && !deadBall && isPlayerBatting && (
         <div className="absolute bottom-4 inset-x-0 z-10 flex justify-center pointer-events-none">
           <div className="bg-black/50 backdrop-blur-sm px-5 py-2 rounded-lg">
             <span className="text-white/80 text-sm font-medium">
@@ -89,7 +91,7 @@ export default function GameHUD({
         </div>
       )}
 
-      {!isPractice && isFieldPhase && !isPlayerBatting && (
+      {!isPractice && isFieldPhase && !deadBall && !isPlayerBatting && (
         <div className="absolute bottom-4 inset-x-0 z-10 flex justify-center pointer-events-none">
           <div className="bg-black/50 backdrop-blur-sm px-5 py-2 rounded-lg">
             <span className="text-white/80 text-sm font-medium">
@@ -118,7 +120,7 @@ export default function GameHUD({
         </div>
       )}
 
-      <KeyHints phase={phase} isPlayerBatting={isPlayerBatting} isPractice={isPractice} />
+      <KeyHints phase={phase} isPlayerBatting={isPlayerBatting} isPractice={isPractice} deadBall={deadBall} />
     </>
   );
 }

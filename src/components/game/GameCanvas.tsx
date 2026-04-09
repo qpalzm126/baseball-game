@@ -183,6 +183,7 @@ export default function GameCanvas() {
           hasSwung={game.hasSwungRef.current}
           ballReleased={game.ballReleasedRef.current}
           bunting={game.buntingRef.current}
+          deadBall={game.deadBallRef.current}
           pitchInfoDisplay={game.pitchInfoDisplay}
           announcement={game.announcementRef.current}
         />

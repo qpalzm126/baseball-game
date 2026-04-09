@@ -96,6 +96,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   const hitCameraHoldRef = useRef(0);
   const hasSwungRef = useRef(false);
   const ballLandedTrailRef = useRef(false);
+  const deadBallRef = useRef(false);
   const pitchFlightSpeedRef = useRef(2.2);
   const pitchInfoRef = useRef<{ type: PitchType; speed: number } | null>(null);
   const [pitchInfoDisplay, setPitchInfoDisplay] = useState<string | null>(null);
@@ -1013,6 +1014,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     hitCameraHoldRef.current = 0;
     hasSwungRef.current = false;
     ballLandedTrailRef.current = false;
+    deadBallRef.current = false;
     chargingRef.current = false;
     chargePowerRef.current = 0;
     buntingRef.current = false;
@@ -1098,6 +1100,14 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         if (storeRef.current.practiceMode) { goToPrePitch(); return; }
         phaseTimerRef.current += dt;
         if (phaseTimerRef.current > 2.0) { goToPrePitch(); gs.resetFielders(); }
+      } else {
+        // Ground rule double / home run with runners still moving:
+        // wait for all runners to reach their target, then advance to next at-bat.
+        const settled = gs.runners.every((r) => r.currentBase === r.targetBase || r.isOut);
+        if (settled) {
+          phaseTimerRef.current += dt;
+          if (phaseTimerRef.current > 1.5) { goToPrePitch(); gs.resetFielders(); }
+        }
       }
       return;
     }
@@ -1144,6 +1154,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       showAnnouncement('HOME RUN!', 2.5);
       sceneRef.current?.hideBall();
       localBallRef.current = null;
+      phaseTimerRef.current = 0;
+      deadBallRef.current = true;
       if (storeRef.current.practiceMode && storeRef.current.isPlayerBatting) {
         setPracticeStats((p) => ({ ...p, homeRuns: p.homeRuns + 1 }));
       }
@@ -1159,6 +1171,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       showAnnouncement('GROUND RULE DOUBLE!', 2.0);
       sceneRef.current?.hideBall();
       localBallRef.current = null;
+      phaseTimerRef.current = 0;
+      deadBallRef.current = true;
       const gs = useGameStore.getState();
       for (const runner of gs.runners) {
         const cur = runner.currentBase;
@@ -1775,6 +1789,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     hasSwungRef,
     ballReleasedRef,
     buntingRef,
+    deadBallRef,
     pitchInfoTimerRef,
     hitDebug,
     practiceStats,
