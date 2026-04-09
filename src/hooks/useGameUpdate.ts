@@ -136,6 +136,36 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     return useMultiplayerStore.getState().isMultiplayer;
   }
 
+  /**
+   * Handle any incoming remote at-bat result (strike/ball/foul/hit/hbp).
+   * Returns true if a result was consumed.
+   */
+  function consumeRemoteAtBatResult(): boolean {
+    const remoteResult = useMultiplayerStore.getState().remoteAtBatResult;
+    if (!remoteResult) return false;
+    useMultiplayerStore.getState().setRemoteAtBatResult(null);
+    const scene = sceneRef.current;
+
+    if (remoteResult.type === 'hit' && remoteResult.hitData) {
+      applyRemoteHitResult(remoteResult.hitData);
+    } else if (remoteResult.type === 'hbp') {
+      handleHitByPitch();
+    } else if (remoteResult.type === 'foul') {
+      showAnnouncement('FOUL', 0.8);
+      const gs = useGameStore.getState();
+      if (gs.count.strikes < 2) gs.advanceCount('strike');
+      localBallRef.current = null;
+      scene?.hideBall();
+      goToPrePitch();
+    } else {
+      const isStrike = remoteResult.type === 'strike';
+      callStrikeOrBall(isStrike);
+      localBallRef.current = null;
+      scene?.hideBall();
+    }
+    return true;
+  }
+
   /** Apply a hit result received from the remote batter. */
   function applyRemoteHitResult(hitData: NonNullable<AtBatResultPayload['hitData']>) {
     const scene = sceneRef.current;
@@ -463,6 +493,12 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       return;
     }
 
+    // PvP pitcher: ball already past catcher, keep polling for remote result
+    if (isMP() && !s.isPlayerBatting && !localBallRef.current) {
+      consumeRemoteAtBatResult();
+      return;
+    }
+
     pitchTimeRef.current += dt;
     pitchProgressRef.current += dt * pitchFlightSpeedRef.current;
 
@@ -508,33 +544,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         tryAISwing(s, scene, p3d);
       }
 
-      // PvP pitcher side: check for remote batter's result each frame
-      if (isMP() && !s.isPlayerBatting) {
-        const remoteResult = useMultiplayerStore.getState().remoteAtBatResult;
-        if (remoteResult) {
-          useMultiplayerStore.getState().setRemoteAtBatResult(null);
-          if (remoteResult.type === 'hit' && remoteResult.hitData) {
-            applyRemoteHitResult(remoteResult.hitData);
-          } else if (remoteResult.type === 'hbp') {
-            handleHitByPitch();
-          } else {
-            const isStrike = remoteResult.type === 'strike' || remoteResult.type === 'foul';
-            if (remoteResult.type === 'foul') {
-              showAnnouncement('FOUL', 0.8);
-              const gs = useGameStore.getState();
-              if (gs.count.strikes < 2) gs.advanceCount('strike');
-              localBallRef.current = null;
-              scene.hideBall();
-              goToPrePitch();
-            } else {
-              callStrikeOrBall(isStrike);
-              localBallRef.current = null;
-              scene.hideBall();
-            }
-          }
-          return;
-        }
-      }
+      if (isMP() && !s.isPlayerBatting && consumeRemoteAtBatResult()) return;
 
       if (p3d.z > -0.5 && p3d.z < 1.5 && !s.isPlayerBatting && !isMP()) {
         useGameStore.getState().setPhase(GamePhase.BatSwing);
@@ -543,7 +553,6 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
       const CATCHER_Z = 1.5;
       if (p3d.z > CATCHER_Z) {
-        // PvP pitcher: if no remote result yet, just hide ball and wait
         if (isMP() && !s.isPlayerBatting) {
           localBallRef.current = null;
           scene.hideBall();
@@ -615,33 +624,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     }
     if (tryBatCollision(s, scene, p3d)) return;
 
-    // PvP pitcher side: check for remote batter's result
-    if (isMP() && !s.isPlayerBatting) {
-      const remoteResult = useMultiplayerStore.getState().remoteAtBatResult;
-      if (remoteResult) {
-        useMultiplayerStore.getState().setRemoteAtBatResult(null);
-        if (remoteResult.type === 'hit' && remoteResult.hitData) {
-          applyRemoteHitResult(remoteResult.hitData);
-        } else if (remoteResult.type === 'hbp') {
-          handleHitByPitch();
-        } else {
-          const isStrike = remoteResult.type === 'strike' || remoteResult.type === 'foul';
-          if (remoteResult.type === 'foul') {
-            showAnnouncement('FOUL', 0.8);
-            const gs = useGameStore.getState();
-            if (gs.count.strikes < 2) gs.advanceCount('strike');
-            localBallRef.current = null;
-            scene.hideBall();
-            goToPrePitch();
-          } else {
-            callStrikeOrBall(isStrike);
-            localBallRef.current = null;
-            scene.hideBall();
-          }
-        }
-        return;
-      }
-    }
+    if (isMP() && !s.isPlayerBatting && consumeRemoteAtBatResult()) return;
 
     const CATCHER_Z = 1.5;
     if (p3d.z > CATCHER_Z) {

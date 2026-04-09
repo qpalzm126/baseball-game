@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/gameStore';
+import { useMultiplayerStore } from '@/store/multiplayerStore';
 import { GameLoop } from '@/engine/GameLoop';
 import { InputManager } from '@/engine/InputManager';
 import { ThreeScene } from '@/engine/ThreeScene';
@@ -89,8 +90,12 @@ export default function GameCanvas() {
     const initFieldCfg = FIELD_SIZE_CONFIGS[storeRef.current.settings.fieldSize];
     threeScene.setFieldSize(initFieldCfg.wallRadiusGU, initFieldCfg.wallHeightGU, initFieldCfg.moundDistanceFt);
     inputRef.current.attach(threeScene.getDomElement());
-    gameLoopRef.current = new GameLoop(game.update, game.render);
-    gameLoopRef.current.start();
+    const loop = new GameLoop(game.update, game.render);
+    if (useMultiplayerStore.getState().isMultiplayer) {
+      loop.setBackgroundMode(true);
+    }
+    gameLoopRef.current = loop;
+    loop.start();
     return () => {
       gameLoopRef.current?.stop();
       inputRef.current.detach();

@@ -1,7 +1,7 @@
 import { createServer } from 'http';
 import { attachGameServer } from './src/server/gameServer';
 
-const port = parseInt(process.env.PORT || '3001', 10);
+const port = parseInt(process.env.PORT || '4000', 10);
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((s) => s.trim())
   : ['http://localhost:3000'];

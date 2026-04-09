@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/store/gameStore';
+import { useMultiplayerStore } from '@/store/multiplayerStore';
 import { GamePhase } from '@/game/types';
 
 export function usePauseControl() {
@@ -36,8 +37,15 @@ export function usePauseControl() {
   }, [resumeGame, router]);
 
   useEffect(() => {
-    const onVisChange = () => { windowHiddenRef.current = document.hidden; };
-    const onBlur = () => { windowHiddenRef.current = true; };
+    const isMP = () => useMultiplayerStore.getState().isMultiplayer;
+    const onVisChange = () => {
+      if (isMP()) return;
+      windowHiddenRef.current = document.hidden;
+    };
+    const onBlur = () => {
+      if (isMP()) return;
+      windowHiddenRef.current = true;
+    };
     const onFocus = () => { windowHiddenRef.current = false; };
     document.addEventListener('visibilitychange', onVisChange);
     window.addEventListener('blur', onBlur);

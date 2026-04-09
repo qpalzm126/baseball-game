@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socketClient';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
@@ -16,6 +16,8 @@ export default function PvPLobbyPage() {
   const mp = useMultiplayerStore();
   const [view, setView] = useState<LobbyView>('choose');
   const [joinCode, setJoinCode] = useState('');
+  const joinCodeRef = useRef(joinCode);
+  joinCodeRef.current = joinCode;
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [playerName] = useState(() => `Player${Math.floor(Math.random() * 9000 + 1000)}`);
@@ -29,8 +31,13 @@ export default function PvPLobbyPage() {
 
   useEffect(() => {
     const socket = connectSocket();
-    useMultiplayerStore.getState().setConnectionStatus('connecting');
     useMultiplayerStore.getState().setPlayerName(playerName);
+
+    if (socket.connected) {
+      useMultiplayerStore.getState().setConnectionStatus('connected');
+    } else {
+      useMultiplayerStore.getState().setConnectionStatus('connecting');
+    }
 
     socket.on('connect', () => {
       useMultiplayerStore.getState().setConnectionStatus('connected');
@@ -44,7 +51,7 @@ export default function PvPLobbyPage() {
     });
 
     socket.on('join_success', (payload) => {
-      useMultiplayerStore.getState().setRoomCode(joinCode.toUpperCase());
+      useMultiplayerStore.getState().setRoomCode(joinCodeRef.current.toUpperCase());
       useMultiplayerStore.getState().setIsHost(false);
       useMultiplayerStore.getState().setOpponentName(payload.opponentName);
       useMultiplayerStore.getState().setLobbyPhase('waiting_room');
@@ -86,7 +93,7 @@ export default function PvPLobbyPage() {
       socket.off('game_start');
       socket.off('error');
     };
-  }, [router, playerName, joinCode]);
+  }, [router, playerName]);
 
   const handleCreateRoom = useCallback(() => {
     getSocket().emit('create_room', { playerName, settings });
