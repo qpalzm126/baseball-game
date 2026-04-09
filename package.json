@@ -4,14 +4,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:server": "tsx watch --tsconfig tsconfig.server.json server.ts",
+    "dev:all": "npm run dev:server & npm run dev",
     "build": "next build",
     "start": "next start",
+    "start:server": "NODE_ENV=production tsx --tsconfig tsconfig.server.json server.ts",
     "lint": "eslint"
   },
   "dependencies": {
     "next": "16.2.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "three": "^0.183.2",
     "zustand": "^5.0.12"
   },
@@ -24,6 +29,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

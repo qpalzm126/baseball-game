@@ -62,6 +62,14 @@ export default function MainMenu() {
           </button>
 
           <button
+            onClick={() => router.push("/pvp/lobby")}
+            className="w-full py-3 bg-orange-600/80 hover:bg-orange-500 text-white font-semibold rounded-xl
+                       transition-all border border-orange-500/30 backdrop-blur-sm"
+          >
+            Play Online
+          </button>
+
+          <button
             onClick={handleStartPractice}
             className="w-full py-3 bg-cyan-600/80 hover:bg-cyan-500 text-white font-semibold rounded-xl
                        transition-all border border-cyan-500/30 backdrop-blur-sm"

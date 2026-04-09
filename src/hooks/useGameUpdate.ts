@@ -53,6 +53,9 @@ import {
   FIELD_SIZE_CONFIGS,
 } from '@/game/constants';
 import { project3Dto2D, distance } from '@/utils/math';
+import { getSocket } from '@/lib/socketClient';
+import { useMultiplayerStore } from '@/store/multiplayerStore';
+import type { AtBatResultPayload } from '@/server/protocol';
 import type { HitDebugData, PracticeStatsData, PitchPracticeStatsData, LastPitchResultData } from '@/components/game/PracticeOverlays';
 
 interface GameUpdateDeps {
@@ -127,6 +130,60 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   function showAnnouncement(text: string, duration: number = 1.0) {
     announcementRef.current = text;
     announcementTimerRef.current = duration;
+  }
+
+  function isMP(): boolean {
+    return useMultiplayerStore.getState().isMultiplayer;
+  }
+
+  /** Apply a hit result received from the remote batter. */
+  function applyRemoteHitResult(hitData: NonNullable<AtBatResultPayload['hitData']>) {
+    const scene = sceneRef.current;
+    hitTypeRef.current = hitData.hitType;
+    showPitchInfo();
+
+    if (hitData.hitType === HitType.Foul) {
+      showAnnouncement('FOUL', 0.8);
+      const gs = useGameStore.getState();
+      if (gs.count.strikes < 2) gs.advanceCount('strike');
+      localBallRef.current = null;
+      scene?.hideBall();
+      goToPrePitch();
+      return;
+    }
+
+    showAnnouncement(hitLabel(hitData.hitType), 1.2);
+
+    localBallRef.current = {
+      position3D: { x: HOME_PLATE.x, y: HOME_PLATE.y, z: Math.max(15, 0.5 * 28) },
+      velocity3D: hitData.exitVelocity,
+      screenPosition: project3Dto2D({ x: HOME_PLATE.x, y: HOME_PLATE.y, z: 15 }),
+      isInPlay: true, isLanded: false, landingPosition: null, heldByFielder: null,
+    };
+
+    scene?.clearTrail();
+    scene?.setTrailColor('flight');
+    hitCameraHoldRef.current = 0.6;
+    practiceTimerRef.current = 0;
+    scene?.setBatterVisible(false);
+
+    const gs = useGameStore.getState();
+    const newRunner = createRunner(0);
+    const allRunners = [...gs.runners, newRunner];
+    const advanced = advanceRunners(allRunners, hitData.hitType);
+    gs.addRunner(newRunner);
+    for (const r of advanced) gs.updateRunner(r.id, { targetBase: r.targetBase, startBase: r.startBase });
+    gs.resetCount();
+    gs.setPhase(GamePhase.BallInPlay);
+  }
+
+  /** Apply remote throw commands queued by the opponent. */
+  function applyRemoteThrowCommands(s: ReturnType<typeof useGameStore.getState>) {
+    const mpStore = useMultiplayerStore.getState();
+    let cmd;
+    while ((cmd = mpStore.shiftRemoteThrowCommand())) {
+      doThrowToBase(cmd.throwTarget, s);
+    }
   }
 
   function resetPitchState() {
@@ -257,6 +314,23 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     phaseTimerRef.current += dt;
     const isPractice = storeRef.current.practiceMode;
     if (s.isPlayerBatting) {
+      if (isMP()) {
+        // PvP: wait for remote pitch from opponent
+        const remotePitch = useMultiplayerStore.getState().remotePitch;
+        if (remotePitch && !aiPitchFiredRef.current) {
+          aiPitchFiredRef.current = true;
+          resetPitchState();
+          const gs = useGameStore.getState();
+          gs.selectPitch(remotePitch.pitchType);
+          gs.setSpeedBarValue(remotePitch.speed);
+          preparePitchPrecise(remotePitch.pitchType, remotePitch.aimX, remotePitch.aimY, remotePitch.accuracy, remotePitch.speed, true);
+          pitchInfoRef.current = { type: remotePitch.pitchType, speed: remotePitch.speed };
+          phaseTimerRef.current = 0;
+          windupStartedRef.current = true;
+          gs.setPhase(GamePhase.Pitching);
+          useMultiplayerStore.getState().setRemotePitch(null);
+        }
+      } else {
       const autoPitchDelay = isPractice ? (rResetRef.current ? 0.85 : 1.0) : 1.8;
       if (phaseTimerRef.current > autoPitchDelay && aiRef.current && !aiPitchFiredRef.current) {
         aiPitchFiredRef.current = true;
@@ -303,6 +377,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         phaseTimerRef.current = 0;
         windupStartedRef.current = true;
         gs.setPhase(GamePhase.Pitching);
+      }
       }
     } else {
       const scene = sceneRef.current;
@@ -429,17 +504,51 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
       if (tryBatCollision(s, scene, p3d)) return;
 
-      if (!s.isPlayerBatting) {
+      if (!s.isPlayerBatting && !isMP()) {
         tryAISwing(s, scene, p3d);
       }
 
-      if (p3d.z > -0.5 && p3d.z < 1.5 && !s.isPlayerBatting) {
+      // PvP pitcher side: check for remote batter's result each frame
+      if (isMP() && !s.isPlayerBatting) {
+        const remoteResult = useMultiplayerStore.getState().remoteAtBatResult;
+        if (remoteResult) {
+          useMultiplayerStore.getState().setRemoteAtBatResult(null);
+          if (remoteResult.type === 'hit' && remoteResult.hitData) {
+            applyRemoteHitResult(remoteResult.hitData);
+          } else if (remoteResult.type === 'hbp') {
+            handleHitByPitch();
+          } else {
+            const isStrike = remoteResult.type === 'strike' || remoteResult.type === 'foul';
+            if (remoteResult.type === 'foul') {
+              showAnnouncement('FOUL', 0.8);
+              const gs = useGameStore.getState();
+              if (gs.count.strikes < 2) gs.advanceCount('strike');
+              localBallRef.current = null;
+              scene.hideBall();
+              goToPrePitch();
+            } else {
+              callStrikeOrBall(isStrike);
+              localBallRef.current = null;
+              scene.hideBall();
+            }
+          }
+          return;
+        }
+      }
+
+      if (p3d.z > -0.5 && p3d.z < 1.5 && !s.isPlayerBatting && !isMP()) {
         useGameStore.getState().setPhase(GamePhase.BatSwing);
         return;
       }
 
       const CATCHER_Z = 1.5;
       if (p3d.z > CATCHER_Z) {
+        // PvP pitcher: if no remote result yet, just hide ball and wait
+        if (isMP() && !s.isPlayerBatting) {
+          localBallRef.current = null;
+          scene.hideBall();
+          return;
+        }
         if (chargingRef.current && s.isPlayerBatting) {
           chargingRef.current = false;
           scene.setChargeLevel(0);
@@ -501,13 +610,46 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         const buntCol = scene.checkBuntBallCollision(p3d);
         if (buntCol.hit) { processBuntHit(s, scene, buntCol.contactPoint); return; }
       }
-    } else {
+    } else if (!isMP()) {
       tryAISwing(s, scene, p3d);
     }
     if (tryBatCollision(s, scene, p3d)) return;
 
+    // PvP pitcher side: check for remote batter's result
+    if (isMP() && !s.isPlayerBatting) {
+      const remoteResult = useMultiplayerStore.getState().remoteAtBatResult;
+      if (remoteResult) {
+        useMultiplayerStore.getState().setRemoteAtBatResult(null);
+        if (remoteResult.type === 'hit' && remoteResult.hitData) {
+          applyRemoteHitResult(remoteResult.hitData);
+        } else if (remoteResult.type === 'hbp') {
+          handleHitByPitch();
+        } else {
+          const isStrike = remoteResult.type === 'strike' || remoteResult.type === 'foul';
+          if (remoteResult.type === 'foul') {
+            showAnnouncement('FOUL', 0.8);
+            const gs = useGameStore.getState();
+            if (gs.count.strikes < 2) gs.advanceCount('strike');
+            localBallRef.current = null;
+            scene.hideBall();
+            goToPrePitch();
+          } else {
+            callStrikeOrBall(isStrike);
+            localBallRef.current = null;
+            scene.hideBall();
+          }
+        }
+        return;
+      }
+    }
+
     const CATCHER_Z = 1.5;
     if (p3d.z > CATCHER_Z) {
+      if (isMP() && !s.isPlayerBatting) {
+        localBallRef.current = null;
+        scene.hideBall();
+        return;
+      }
       if (chargingRef.current && s.isPlayerBatting) {
         chargingRef.current = false;
         scene.setChargeLevel(0);
@@ -640,6 +782,21 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       }
     }
 
+    // PvP batter: emit at_bat_result for the hit
+    if (isMP() && s.isPlayerBatting) {
+      getSocket().emit('at_bat_result', {
+        type: result.type === HitType.Foul ? 'foul' as const : 'hit' as const,
+        hitData: {
+          hitType: result.type,
+          exitVelocity: result.velocity,
+          launchAngle: result.launchAngleDeg,
+          contactPoint: { x: contactPoint.x, y: contactPoint.y, z: contactPoint.z },
+          chargePower,
+          isBunt: false,
+        },
+      });
+    }
+
     if (result.type === HitType.Foul) {
       showAnnouncement('FOUL', 0.8);
       if (!isPractice && s.count.strikes < 2) useGameStore.getState().advanceCount('strike');
@@ -707,6 +864,21 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     hasSwungRef.current = true;
     const isPractice = storeRef.current.practiceMode;
 
+    // PvP batter: emit at_bat_result for bunt hit
+    if (isMP() && s.isPlayerBatting) {
+      getSocket().emit('at_bat_result', {
+        type: result.type === HitType.Foul ? 'foul' as const : 'hit' as const,
+        hitData: {
+          hitType: result.type,
+          exitVelocity: result.velocity,
+          launchAngle: result.launchAngleDeg,
+          contactPoint: { x: contactPoint.x, y: contactPoint.y, z: contactPoint.z },
+          chargePower: 0,
+          isBunt: true,
+        },
+      });
+    }
+
     if (isPractice) {
       setHitDebug({
         exitSpeed: result.exitSpeed,
@@ -771,6 +943,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     localBallRef.current = null;
     sceneRef.current?.hideBall();
     showPitchInfo();
+    if (isMP() && storeRef.current.isPlayerBatting) {
+      getSocket().emit('at_bat_result', { type: 'hbp' });
+    }
     if (storeRef.current.practiceMode) {
       showAnnouncement('HIT BY PITCH!', 1.2);
       goToPrePitch();
@@ -799,6 +974,14 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     const gs = useGameStore.getState();
     const willStrikeOut = inZone && gs.count.strikes >= 2;
     const willWalk = !inZone && gs.count.balls >= 3;
+
+    // PvP batter: emit at_bat_result for strike/ball
+    if (isMP() && gs.isPlayerBatting) {
+      const isStrike = inZone || hasSwungRef.current;
+      getSocket().emit('at_bat_result', {
+        type: isStrike ? 'strike' : 'ball',
+      });
+    }
 
     if (storeRef.current.practiceMode) {
       const isBattingPractice = gs.isPlayerBatting;
@@ -1006,7 +1189,14 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     }
 
     handleBaserunning(s, inp);
-    if (!s.isPlayerBatting) {
+    if (isMP()) {
+      handleAutoDefense(s, dt, time);
+      if (!s.isPlayerBatting) {
+        handlePlayerThrows(s, inp);
+      } else {
+        applyRemoteThrowCommands(s);
+      }
+    } else if (!s.isPlayerBatting) {
       handleAutoDefense(s, dt, time);
       handlePlayerThrows(s, inp);
     } else {
@@ -1093,7 +1283,14 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         }
       }
     }
-    if (!s.isPlayerBatting) {
+    if (isMP()) {
+      handleAutoDefense(s, dt, time);
+      if (!s.isPlayerBatting) {
+        handlePlayerThrows(s, inp);
+      } else {
+        applyRemoteThrowCommands(s);
+      }
+    } else if (!s.isPlayerBatting) {
       handleAutoDefense(s, dt, time);
       handlePlayerThrows(s, inp);
     } else {
@@ -1207,7 +1404,14 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       ['z', FIRST_BASE], ['x', SECOND_BASE], ['c', THIRD_BASE], ['v', HOME_PLATE],
     ];
     for (const [key, basePos] of baseKeys) {
-      if (inp.keysPressed.has(key)) { doThrowToBase(basePos, s); return; }
+      if (inp.keysPressed.has(key)) {
+        doThrowToBase(basePos, s);
+        if (isMP()) {
+          const baseIdx = baseKeys.findIndex(([k]) => k === key);
+          getSocket().emit('throw_command', { fromFielderId: holder.id, toBase: baseIdx + 1, throwTarget: basePos });
+        }
+        return;
+      }
     }
 
     for (const key of inp.keysPressed) {
@@ -1217,6 +1421,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         if (target && target.id !== holder.id) {
           const gs = useGameStore.getState();
           doThrow(holder.id, target, gs);
+          if (isMP()) {
+            getSocket().emit('throw_command', { fromFielderId: holder.id, toBase: target.id, throwTarget: target.location });
+          }
           return;
         }
       }
@@ -1296,6 +1503,13 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       hasSwungRef.current = false; ballReleasedRef.current = false;
       windupStartedRef.current = false; pitchProgressRef.current = 0;
       sceneRef.current?.clearRunners(); sceneRef.current?.resetPitcherAnimation(); sceneRef.current?.clearTrail();
+      if (isMP()) {
+        const mpStore = useMultiplayerStore.getState();
+        mpStore.setIsLocalBatting(!mpStore.isLocalBatting);
+        mpStore.clearRemoteThrowCommands();
+        mpStore.setRemotePitch(null);
+        mpStore.setRemoteAtBatResult(null);
+      }
       useGameStore.getState().nextHalfInning();
       sceneRef.current?.resetBatter();
     }
@@ -1349,7 +1563,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
       if (s.isPlayerBatting) {
         handleBatterControls(inp, dt);
-      } else {
+      } else if (!isMP()) {
         handleAIBatTracking(s, dt);
       }
 
@@ -1531,6 +1745,19 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     preparePitchPrecise(s.selectedPitch, s.pitchAimPos.x, s.pitchAimPos.y, s.accuracyValue, value, false);
     pitchInfoRef.current = { type: s.selectedPitch, speed: value };
     windupStartedRef.current = true;
+
+    // PvP: emit pitch_committed so remote batter sees the same pitch
+    if (isMP()) {
+      getSocket().emit('pitch_committed', {
+        pitchType: s.selectedPitch,
+        targetCell: s.targetCell ?? -1,
+        aimX: s.pitchAimPos.x,
+        aimY: s.pitchAimPos.y,
+        accuracy: s.accuracyValue,
+        speed: value,
+      });
+    }
+
     if (storeRef.current.practiceMode) {
       setPitchPracticeStats((p) => ({ ...p, pitches: p.pitches + 1 }));
       const cfg = PITCH_CONFIGS[s.selectedPitch];
