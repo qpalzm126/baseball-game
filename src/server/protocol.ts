@@ -75,6 +75,19 @@ export interface ThrowCommandPayload {
   throwTarget: Vec2;
 }
 
+export interface BatterUpdatePayload {
+  normX: number;
+  normY: number;
+  boxX: number;
+  boxZ: number;
+  bunting: boolean;
+}
+
+export interface BatterSwingPayload {
+  chargePower: number;
+  swingSpeedMul: number;
+}
+
 export interface PlayResolvedPayload {
   outcome: 'out' | 'safe' | 'run_scored' | 'home_run' | 'foul';
   gameState: {
@@ -121,6 +134,8 @@ export interface ClientToServerEvents {
   pitch_committed: (payload: PitchCommittedPayload) => void;
   at_bat_result: (payload: AtBatResultPayload) => void;
   throw_command: (payload: ThrowCommandPayload) => void;
+  batter_update: (payload: BatterUpdatePayload) => void;
+  batter_swing: (payload: BatterSwingPayload) => void;
   play_resolved: (payload: PlayResolvedPayload) => void;
   game_state_sync: (payload: GameStateSyncPayload) => void;
   pause_game: () => void;
@@ -139,6 +154,8 @@ export interface ServerToClientEvents {
   pitch_committed: (payload: PitchCommittedPayload) => void;
   at_bat_result: (payload: AtBatResultPayload) => void;
   throw_command: (payload: ThrowCommandPayload) => void;
+  batter_update: (payload: BatterUpdatePayload) => void;
+  batter_swing: (payload: BatterSwingPayload) => void;
   play_resolved: (payload: PlayResolvedPayload) => void;
   game_state_sync: (payload: GameStateSyncPayload) => void;
   opponent_disconnected: (payload: OpponentDisconnectedPayload) => void;

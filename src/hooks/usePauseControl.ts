@@ -16,6 +16,19 @@ export function usePauseControl() {
 
   const isMP = () => useMultiplayerStore.getState().isMultiplayer;
 
+  const emitStateSync = useCallback(() => {
+    const gs = useGameStore.getState();
+    getSocket().emit('game_state_sync', {
+      score: gs.score,
+      count: gs.count,
+      outs: gs.outs,
+      inning: gs.inning,
+      runners: gs.runners,
+      phase: gs.phase,
+      isPlayerBatting: gs.isPlayerBatting,
+    });
+  }, []);
+
   const togglePause = useCallback(() => {
     const mp = useMultiplayerStore.getState();
     if (mp.isMultiplayer && mp.remotePausedBy) return;
@@ -25,18 +38,20 @@ export function usePauseControl() {
       pausedRef.current = next;
       if (mp.isMultiplayer) {
         getSocket().emit(next ? 'pause_game' : 'unpause_game');
+        if (!next) emitStateSync();
       }
       return next;
     });
-  }, []);
+  }, [emitStateSync]);
 
   const resumeGame = useCallback(() => {
     setPaused(false);
     pausedRef.current = false;
     if (isMP()) {
       getSocket().emit('unpause_game');
+      emitStateSync();
     }
-  }, []);
+  }, [emitStateSync]);
 
   const quitGame = useCallback(() => {
     resumeGame();

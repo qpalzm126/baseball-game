@@ -127,6 +127,18 @@ export function attachGameServer(httpServer: HTTPServer, allowedOrigins?: string
       socket.to(room.code).emit('throw_command', payload);
     });
 
+    socket.on('batter_update', (payload) => {
+      const room = getRoomBySocketId(socket.id);
+      if (!room) return;
+      socket.to(room.code).emit('batter_update', payload);
+    });
+
+    socket.on('batter_swing', (payload) => {
+      const room = getRoomBySocketId(socket.id);
+      if (!room) return;
+      socket.to(room.code).emit('batter_swing', payload);
+    });
+
     socket.on('play_resolved', (payload) => {
       const room = getRoomBySocketId(socket.id);
       if (!room) return;

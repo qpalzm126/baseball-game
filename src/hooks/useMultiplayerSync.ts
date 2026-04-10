@@ -35,6 +35,22 @@ export function useMultiplayerSync() {
       mp.getState().pushRemoteThrowCommand(payload);
     });
 
+    socket.on('play_resolved', (payload) => {
+      mp.getState().setRemotePlayResolved(payload);
+    });
+
+    socket.on('game_state_sync', (payload) => {
+      mp.getState().setRemoteStateSync(payload);
+    });
+
+    socket.on('batter_update', (payload) => {
+      mp.getState().setRemoteBatterUpdate(payload);
+    });
+
+    socket.on('batter_swing', (payload) => {
+      mp.getState().setRemoteBatterSwing(payload);
+    });
+
     socket.on('opponent_disconnected', (payload) => {
       mp.getState().setOpponentDisconnected(true);
       mp.getState().setReconnectDeadline(payload.reconnectDeadline);
@@ -63,6 +79,10 @@ export function useMultiplayerSync() {
       socket.off('pitch_committed');
       socket.off('at_bat_result');
       socket.off('throw_command');
+      socket.off('play_resolved');
+      socket.off('game_state_sync');
+      socket.off('batter_update');
+      socket.off('batter_swing');
       socket.off('opponent_disconnected');
       socket.off('opponent_reconnected');
       socket.off('game_paused');

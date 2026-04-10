@@ -55,7 +55,7 @@ import {
 import { project3Dto2D, distance } from '@/utils/math';
 import { getSocket } from '@/lib/socketClient';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
-import type { AtBatResultPayload } from '@/server/protocol';
+import type { AtBatResultPayload, PlayResolvedPayload } from '@/server/protocol';
 import type { HitDebugData, PracticeStatsData, PitchPracticeStatsData, LastPitchResultData } from '@/components/game/PracticeOverlays';
 
 interface GameUpdateDeps {
@@ -120,6 +120,11 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   const aiSwingTimingRef = useRef(0);
   const aiChargePowerRef = useRef(0.85);
 
+  const remoteBatTargetRef = useRef({ normX: 0.5, normY: 0.5, boxX: 0, boxZ: 0, bunting: false });
+  const remoteBatCurrentRef = useRef({ normX: 0.5, normY: 0.5, boxX: 0, boxZ: 0 });
+  const lastBatterEmitRef = useRef(0);
+  const remoteBuntActiveRef = useRef(false);
+
   const practiceTimerRef = useRef(0);
   const rResetRef = useRef(false);
   const maxDistRef = useRef(0);
@@ -141,6 +146,111 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
   function isMP(): boolean {
     return useMultiplayerStore.getState().isMultiplayer;
+  }
+
+  function emitPlayResolved(outcome: PlayResolvedPayload['outcome']) {
+    const gs = useGameStore.getState();
+    getSocket().emit('play_resolved', {
+      outcome,
+      gameState: {
+        score: gs.score,
+        count: gs.count,
+        outs: gs.outs,
+        inning: gs.inning,
+        runners: gs.runners,
+        isPlayerBatting: gs.isPlayerBatting,
+      },
+    });
+  }
+
+  function consumeRemotePlayResolved() {
+    const mp = useMultiplayerStore.getState();
+    const resolved = mp.remotePlayResolved;
+    if (!resolved) return;
+    mp.setRemotePlayResolved(null);
+    if (resolved.outcome !== 'out') return;
+
+    const gs = useGameStore.getState();
+    const remoteOuts = resolved.gameState.outs;
+
+    if (remoteOuts <= gs.outs) {
+      if (resolved.gameState.score.home !== gs.score.home || resolved.gameState.score.away !== gs.score.away) {
+        useGameStore.setState({ score: resolved.gameState.score });
+      }
+      return;
+    }
+
+    const remoteRunnerIds = new Set(resolved.gameState.runners.map((r) => r.id));
+    for (const runner of gs.runners) {
+      if (!remoteRunnerIds.has(runner.id)) {
+        gs.removeRunner(runner.id);
+        sceneRef.current?.removeRunner(runner.id);
+      }
+    }
+
+    showAnnouncement(`OUT! ${outCountText(remoteOuts)}`, 1.2);
+
+    if (remoteOuts >= 3) {
+      const { inning, settings, score } = gs;
+      const isBottomLastDone = !inning.isTop && inning.number >= settings.totalInnings;
+      const isTopLastAndHomeleads =
+        inning.isTop && inning.number >= settings.totalInnings && score.home > score.away;
+      localBallRef.current = null;
+      sceneRef.current?.hideBall();
+      if (isBottomLastDone || isTopLastAndHomeleads) {
+        useGameStore.setState({ outs: remoteOuts, phase: GamePhase.GameOver });
+      } else {
+        useGameStore.setState({ outs: remoteOuts, phase: GamePhase.HalfInningEnd });
+      }
+    } else {
+      useGameStore.setState({ outs: remoteOuts });
+    }
+
+    if (resolved.gameState.score.home !== gs.score.home || resolved.gameState.score.away !== gs.score.away) {
+      useGameStore.setState({ score: resolved.gameState.score });
+    }
+  }
+
+  function consumeRemoteStateSync() {
+    const mp = useMultiplayerStore.getState();
+    const sync = mp.remoteStateSync;
+    if (!sync) return;
+    mp.setRemoteStateSync(null);
+
+    const gs = useGameStore.getState();
+
+    if (sync.outs !== gs.outs) {
+      useGameStore.setState({ outs: sync.outs });
+      if (sync.outs >= 3 && gs.phase !== GamePhase.HalfInningEnd && gs.phase !== GamePhase.GameOver) {
+        const { inning, settings, score } = gs;
+        const isBottomLastDone = !inning.isTop && inning.number >= settings.totalInnings;
+        const isTopLastAndHomeleads =
+          inning.isTop && inning.number >= settings.totalInnings && score.home > score.away;
+        localBallRef.current = null;
+        sceneRef.current?.hideBall();
+        if (isBottomLastDone || isTopLastAndHomeleads) {
+          useGameStore.setState({ phase: GamePhase.GameOver });
+        } else {
+          useGameStore.setState({ phase: GamePhase.HalfInningEnd });
+        }
+      }
+    }
+
+    if (sync.score.home !== gs.score.home || sync.score.away !== gs.score.away) {
+      useGameStore.setState({ score: sync.score });
+    }
+    if (sync.count.balls !== gs.count.balls || sync.count.strikes !== gs.count.strikes) {
+      useGameStore.setState({ count: sync.count });
+    }
+    if (sync.inning.number !== gs.inning.number || sync.inning.isTop !== gs.inning.isTop) {
+      useGameStore.setState({ inning: sync.inning });
+    }
+
+    const expectedLocalBatting = !sync.isPlayerBatting;
+    if (gs.isPlayerBatting !== expectedLocalBatting) {
+      useGameStore.setState({ isPlayerBatting: expectedLocalBatting });
+      mp.setIsLocalBatting(expectedLocalBatting);
+    }
   }
 
   /**
@@ -270,6 +380,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       buntingRef.current = !buntingRef.current;
       scene.setBunting(buntingRef.current);
     }
+
+    if (isMP()) emitBatterUpdate(normX, normY);
   }
 
   /* --- AI bat tracking --- */
@@ -308,6 +420,60 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     aiBatPosRef.current.y += (targetNY - aiBatPosRef.current.y) * lerpFactor;
 
     scene.setSweetSpotFromCursor(aiBatPosRef.current.x, aiBatPosRef.current.y);
+  }
+
+  function handleRemoteBatterTracking(dt: number) {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const mp = useMultiplayerStore.getState();
+    const update = mp.remoteBatterUpdate;
+    if (update) {
+      mp.setRemoteBatterUpdate(null);
+      remoteBatTargetRef.current = { ...update };
+    }
+
+    const swing = mp.remoteBatterSwing;
+    if (swing) {
+      mp.setRemoteBatterSwing(null);
+      if (!scene.isSwinging()) {
+        scene.startSwing(swing.chargePower, swing.swingSpeedMul);
+        hasSwungRef.current = true;
+      }
+    }
+
+    const target = remoteBatTargetRef.current;
+    const current = remoteBatCurrentRef.current;
+    const lerpRate = 14;
+    const factor = 1 - Math.exp(-lerpRate * dt);
+    current.normX += (target.normX - current.normX) * factor;
+    current.normY += (target.normY - current.normY) * factor;
+    current.boxX += (target.boxX - current.boxX) * factor;
+    current.boxZ += (target.boxZ - current.boxZ) * factor;
+
+    scene.setSweetSpotFromCursor(current.normX, current.normY);
+    scene.setBatterBoxPosition(current.boxX, current.boxZ);
+
+    if (target.bunting !== remoteBuntActiveRef.current) {
+      remoteBuntActiveRef.current = target.bunting;
+      scene.setBunting(target.bunting);
+    }
+  }
+
+  function emitBatterUpdate(normX: number, normY: number) {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const now = performance.now();
+    if (now - lastBatterEmitRef.current < 50) return;
+    lastBatterEmitRef.current = now;
+    const box = scene.getBatterBoxOffset();
+    getSocket().emit('batter_update', {
+      normX,
+      normY,
+      boxX: box.x,
+      boxZ: box.z,
+      bunting: buntingRef.current,
+    });
   }
 
   function tryAISwing(s: ReturnType<typeof useGameStore.getState>, scene: ThreeScene, p3d: THREE.Vector3) {
@@ -1121,6 +1287,10 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     aiSwingTimingRef.current = perfectMode ? 0 : ((Math.random() - 0.5) * 2);
     aiChargePowerRef.current = perfectMode ? 1.0 : (0.45 + accuracy * 0.4 + (Math.random() - 0.5) * 0.3);
     aiChargePowerRef.current = Math.max(0.3, Math.min(1, aiChargePowerRef.current));
+
+    remoteBatTargetRef.current = { normX: 0.5, normY: 0.5, boxX: 0, boxZ: 0, bunting: false };
+    remoteBatCurrentRef.current = { normX: 0.5, normY: 0.5, boxX: 0, boxZ: 0 };
+    remoteBuntActiveRef.current = false;
   }
 
   /* --- baserunning controls (player batting) / AI baserunning --- */
@@ -1164,6 +1334,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     const label = out.kind === 'tag' ? 'TAG OUT!' : 'FORCE OUT!';
     showAnnouncement(`${label}  ${outCountText(newOuts)}`, 1.2);
     gs.recordOutInPlay();
+    if (isMP()) emitPlayResolved('out');
     return true;
   }
 
@@ -1310,6 +1481,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
           const newOuts = gs.outs + 1;
           showAnnouncement(`CAUGHT! OUT!  ${outCountText(newOuts)}`, 1.2);
           gs.recordOut();
+          if (isMP()) emitPlayResolved('out');
           return;
         }
         gs.updateFielder(fielder.id, { hasBall: true });
@@ -1643,7 +1815,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
       if (s.isPlayerBatting) {
         handleBatterControls(inp, dt);
-      } else if (!isMP()) {
+      } else if (isMP()) {
+        handleRemoteBatterTracking(dt);
+      } else {
         handleAIBatTracking(s, dt);
       }
 
@@ -1673,6 +1847,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
           hasSwungRef.current = true;
           chargingRef.current = false;
           scene.setChargeLevel(0);
+          if (isMP()) {
+            getSocket().emit('batter_swing', { chargePower: chargePowerRef.current, swingSpeedMul: swingMul });
+          }
         }
       }
 
@@ -1701,7 +1878,13 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       return;
     }
 
-    switch (s.phase) {
+    if (isMP()) {
+      consumeRemotePlayResolved();
+      consumeRemoteStateSync();
+    }
+
+    const phase = storeRef.current.phase;
+    switch (phase) {
       case GamePhase.PrePitch: handlePrePitch(s, inp, dt); break;
       case GamePhase.Pitching: handlePitching(s, inp, dt); break;
       case GamePhase.BatSwing: handleBatSwing(s, inp, dt); break;

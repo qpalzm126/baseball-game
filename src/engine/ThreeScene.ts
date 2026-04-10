@@ -1322,6 +1322,21 @@ export class ThreeScene {
     if (this._bunting) this.applyBuntPose();
   }
 
+  getBatterBoxOffset(): { x: number; z: number } {
+    return { x: this.batterXOffset, z: this.batterZOffset };
+  }
+
+  setBatterBoxPosition(x: number, z: number) {
+    const limX = BBOX_HW - ThreeScene.FOOT_HW;
+    const limZ = BBOX_HD - ThreeScene.FOOT_HW;
+    this.batterXOffset = Math.max(-limX, Math.min(limX, x));
+    this.batterZOffset = Math.max(-limZ, Math.min(limZ, z));
+    const posSign = this.batterSide === 'right' ? -1 : 1;
+    this.batter.root.position.x = posSign * 0.55 + this.batterXOffset;
+    this.batter.root.position.z = 0.45 + this.batterZOffset;
+    if (this._bunting) this.applyBuntPose();
+  }
+
   getBatterBodyPos(): { x: number; y: number; z: number } {
     const p = this.batter.root.position;
     return { x: p.x, y: 0.50, z: p.z };

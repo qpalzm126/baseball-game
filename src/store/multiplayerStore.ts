@@ -4,6 +4,10 @@ import type {
   PitchCommittedPayload,
   AtBatResultPayload,
   ThrowCommandPayload,
+  PlayResolvedPayload,
+  GameStateSyncPayload,
+  BatterUpdatePayload,
+  BatterSwingPayload,
 } from '@/server/protocol';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
@@ -31,6 +35,10 @@ export interface MultiplayerStore {
   remotePitch: PitchCommittedPayload | null;
   remoteAtBatResult: AtBatResultPayload | null;
   remoteThrowCommands: ThrowCommandPayload[];
+  remotePlayResolved: PlayResolvedPayload | null;
+  remoteStateSync: GameStateSyncPayload | null;
+  remoteBatterUpdate: BatterUpdatePayload | null;
+  remoteBatterSwing: BatterSwingPayload | null;
 
   setConnectionStatus: (status: ConnectionStatus) => void;
   setLobbyPhase: (phase: LobbyPhase) => void;
@@ -52,6 +60,10 @@ export interface MultiplayerStore {
   pushRemoteThrowCommand: (cmd: ThrowCommandPayload) => void;
   shiftRemoteThrowCommand: () => ThrowCommandPayload | undefined;
   clearRemoteThrowCommands: () => void;
+  setRemotePlayResolved: (p: PlayResolvedPayload | null) => void;
+  setRemoteStateSync: (s: GameStateSyncPayload | null) => void;
+  setRemoteBatterUpdate: (p: BatterUpdatePayload | null) => void;
+  setRemoteBatterSwing: (p: BatterSwingPayload | null) => void;
 
   startMultiplayerGame: (isLocalBatting: boolean, settings: GameSettings) => void;
   reset: () => void;
@@ -76,6 +88,10 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
   remotePitch: null,
   remoteAtBatResult: null,
   remoteThrowCommands: [],
+  remotePlayResolved: null,
+  remoteStateSync: null,
+  remoteBatterUpdate: null,
+  remoteBatterSwing: null,
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   setLobbyPhase: (phase) => set({ lobbyPhase: phase }),
@@ -105,6 +121,10 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
     return first;
   },
   clearRemoteThrowCommands: () => set({ remoteThrowCommands: [] }),
+  setRemotePlayResolved: (p) => set({ remotePlayResolved: p }),
+  setRemoteStateSync: (s) => set({ remoteStateSync: s }),
+  setRemoteBatterUpdate: (p) => set({ remoteBatterUpdate: p }),
+  setRemoteBatterSwing: (p) => set({ remoteBatterSwing: p }),
 
   startMultiplayerGame: (isLocalBatting, settings) => set({
     isMultiplayer: true,
@@ -113,6 +133,10 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
     remotePitch: null,
     remoteAtBatResult: null,
     remoteThrowCommands: [],
+    remotePlayResolved: null,
+    remoteStateSync: null,
+    remoteBatterUpdate: null,
+    remoteBatterSwing: null,
     opponentDisconnected: false,
     reconnectDeadline: null,
     forfeitWinner: null,
@@ -135,5 +159,9 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
     remotePitch: null,
     remoteAtBatResult: null,
     remoteThrowCommands: [],
+    remotePlayResolved: null,
+    remoteStateSync: null,
+    remoteBatterUpdate: null,
+    remoteBatterSwing: null,
   }),
 }));
