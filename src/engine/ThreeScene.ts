@@ -1248,12 +1248,15 @@ export class ThreeScene {
 
   /* --------- team colors --------- */
 
-  setTeamSides(isPlayerBatting: boolean) {
-    this.isPlayerBattingState = isPlayerBatting;
-    const batterJersey = isPlayerBatting ? PLAYER_JERSEY : CPU_JERSEY;
-    const pitcherJersey = isPlayerBatting ? CPU_JERSEY : PLAYER_JERSEY;
-    const fielderJersey = isPlayerBatting ? CPU_FIELDER_JERSEY : PLAYER_FIELDER_JERSEY;
-    const runnerJersey = isPlayerBatting ? PLAYER_JERSEY : CPU_JERSEY;
+  setTeamSides(isPlayerBatting: boolean, isMultiplayer = false, isHost = false) {
+    const isHomeBatting = isMultiplayer
+      ? (isPlayerBatting === isHost)
+      : isPlayerBatting;
+    this.isPlayerBattingState = isHomeBatting;
+    const batterJersey = isHomeBatting ? PLAYER_JERSEY : CPU_JERSEY;
+    const pitcherJersey = isHomeBatting ? CPU_JERSEY : PLAYER_JERSEY;
+    const fielderJersey = isHomeBatting ? CPU_FIELDER_JERSEY : PLAYER_FIELDER_JERSEY;
+    const runnerJersey = isHomeBatting ? PLAYER_JERSEY : CPU_JERSEY;
 
     this.batter.jerseyMat.color.setHex(batterJersey);
     this.batter.helmetMat.color.setHex(batterJersey);

@@ -250,6 +250,12 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     if (gs.isPlayerBatting !== expectedLocalBatting) {
       useGameStore.setState({ isPlayerBatting: expectedLocalBatting });
       mp.setIsLocalBatting(expectedLocalBatting);
+      hasSwungRef.current = false;
+      buntingRef.current = false;
+      chargingRef.current = false;
+      chargePowerRef.current = 0;
+      sceneRef.current?.setChargeLevel(0);
+      sceneRef.current?.setBunting(false);
     }
   }
 
@@ -438,7 +444,6 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       mp.setRemoteBatterSwing(null);
       if (!scene.isSwinging()) {
         scene.startSwing(swing.chargePower, swing.swingSpeedMul);
-        hasSwungRef.current = true;
       }
     }
 
@@ -1754,6 +1759,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       localBallRef.current = null; hitCameraHoldRef.current = 0;
       hasSwungRef.current = false; ballReleasedRef.current = false;
       windupStartedRef.current = false; pitchProgressRef.current = 0;
+      buntingRef.current = false; chargingRef.current = false; chargePowerRef.current = 0;
+      deadBallRef.current = false; ballLandedTrailRef.current = false;
+      sceneRef.current?.setChargeLevel(0); sceneRef.current?.setBunting(false);
       sceneRef.current?.clearRunners(); sceneRef.current?.resetPitcherAnimation(); sceneRef.current?.clearTrail();
       if (isMP()) {
         const mpStore = useMultiplayerStore.getState();
@@ -1914,7 +1922,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
     if (lastPlayerBattingRef.current !== s.isPlayerBatting) {
       lastPlayerBattingRef.current = s.isPlayerBatting;
-      scene.setTeamSides(s.isPlayerBatting);
+      const mp = useMultiplayerStore.getState();
+      scene.setTeamSides(s.isPlayerBatting, mp.isMultiplayer, mp.isHost);
       scene.setPitchingCentered(!s.isPlayerBatting);
     }
 
@@ -1929,8 +1938,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     }
 
     const showReticle = s.isPlayerBatting && !isFieldPhase
-      && !s.phase.toString().includes('GameOver') && !hasSwungRef.current
-      && !buntingRef.current;
+      && s.phase !== GamePhase.GameOver && s.phase !== GamePhase.HalfInningEnd
+      && !hasSwungRef.current && !buntingRef.current;
     scene.updateReticle(showReticle);
 
     if (chargeBarRef.current && chargeInnerRef.current) {
