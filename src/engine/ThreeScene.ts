@@ -240,6 +240,7 @@ export class ThreeScene {
   private camT = 1;
   private camSpeed = 2.0;
   private currentMode: 'batting' | 'fielding' = 'batting';
+  private pitchingCentered = false;
 
   /* batting camera orbit */
   private battingCamAngle = 0;
@@ -1120,8 +1121,8 @@ export class ThreeScene {
   /* --------- camera --------- */
 
   private getBattingCamPos(): THREE.Vector3 {
-    const sideSign = this.batterSide === 'right' ? 1 : -1;
-    const base = new THREE.Vector3(sideSign * 0.20, 0.62, 2.5);
+    const xOff = this.pitchingCentered ? 0 : (this.batterSide === 'right' ? 1 : -1) * 0.20;
+    const base = new THREE.Vector3(xOff, 0.62, 2.5);
     if (this.battingCamAngle !== 0) base.applyAxisAngle(ThreeScene.Y_AXIS, this.battingCamAngle);
     return base;
   }
@@ -1186,6 +1187,19 @@ export class ThreeScene {
     this.applyFielderVisibility();
     this.standsTargetOpacity = 0.85;
     if (instant) this.applyStandsOpacity(0.85);
+  }
+
+  setPitchingCentered(v: boolean) {
+    if (this.pitchingCentered === v) return;
+    this.pitchingCentered = v;
+    if (this.currentMode === 'batting') {
+      this.camPosFrom.copy(this.camera.position);
+      this.camLookFrom.copy(this.camLookCur);
+      this.camPosTo.copy(this.getBattingCamPos());
+      this.camLookTo.copy(this.getBattingCamLookAt());
+      this.camSpeed = 6.0;
+      this.camT = 0;
+    }
   }
 
   private fielderLabelsVisible = false;
@@ -1269,7 +1283,7 @@ export class ThreeScene {
     leadElbow.add(this.batPivot);
     this.batPivot.position.set(0, -FOREARM_LEN, 0);
     const sign = this.batterSide === 'right' ? 1 : -1;
-    this.bat.group.rotation.set(0.4, sign * -0.3, 0.75);
+    this.bat.group.rotation.set(0.4, sign * -0.3, sign * 0.75);
     this.batPivot.rotation.set(0, sign * -0.40, 0);
   }
 
@@ -1351,27 +1365,40 @@ export class ThreeScene {
       return;
     }
     if (this.swingT < 0) {
-      const sign = this.batterSide === 'right' ? 1 : -1;
-      this.batter.rShoulder.rotation.x = lerp(-0.35, -0.60, normY);
-      this.batter.lShoulder.rotation.x = lerp(-0.45, -0.70, normY);
-      this.batter.rShoulder.rotation.z = sign * lerp(-0.42, -0.62, normY);
-      this.batter.lShoulder.rotation.z = sign * lerp(0.32, 0.52, normY);
-      this.batter.rElbow.rotation.x = lerp(-1.50, -1.85, normY);
-      this.batter.lElbow.rotation.x = lerp(-1.30, -1.65, normY);
+      const isRight = this.batterSide === 'right';
+      const batShoulder = isRight ? this.batter.rShoulder : this.batter.lShoulder;
+      const frontShoulder = isRight ? this.batter.lShoulder : this.batter.rShoulder;
+      const batElbow = isRight ? this.batter.rElbow : this.batter.lElbow;
+      const frontElbow = isRight ? this.batter.lElbow : this.batter.rElbow;
+      const batOutZ = isRight ? -1 : 1;
+      const frontOutZ = isRight ? 1 : -1;
+      batShoulder.rotation.x = lerp(-0.35, -0.60, normY);
+      frontShoulder.rotation.x = lerp(-0.45, -0.70, normY);
+      batShoulder.rotation.z = batOutZ * lerp(0.42, 0.62, normY);
+      frontShoulder.rotation.z = frontOutZ * lerp(0.32, 0.52, normY);
+      batElbow.rotation.x = lerp(-1.50, -1.85, normY);
+      frontElbow.rotation.x = lerp(-1.30, -1.65, normY);
     }
   }
 
   private resetBatterPose() {
     if (this._bunting) { this.applyBuntPose(); return; }
     const sign = this.batterSide === 'right' ? 1 : -1;
+    const isRight = this.batterSide === 'right';
     this.batter.hipJoint.rotation.y = sign * -0.25;
     this.batter.hipJoint.rotation.x = 0;
-    this.batter.rShoulder.rotation.x = -0.50;
-    this.batter.rShoulder.rotation.z = sign * -0.60;
-    this.batter.lShoulder.rotation.x = -0.60;
-    this.batter.lShoulder.rotation.z = sign * 0.50;
-    this.batter.rElbow.rotation.x = -1.80;
-    this.batter.lElbow.rotation.x = -1.60;
+    const batShoulder = isRight ? this.batter.rShoulder : this.batter.lShoulder;
+    const frontShoulder = isRight ? this.batter.lShoulder : this.batter.rShoulder;
+    const batElbow = isRight ? this.batter.rElbow : this.batter.lElbow;
+    const frontElbow = isRight ? this.batter.lElbow : this.batter.rElbow;
+    const batOutZ = isRight ? -1 : 1;
+    const frontOutZ = isRight ? 1 : -1;
+    batShoulder.rotation.x = -0.50;
+    batShoulder.rotation.z = batOutZ * 0.60;
+    frontShoulder.rotation.x = -0.60;
+    frontShoulder.rotation.z = frontOutZ * 0.50;
+    batElbow.rotation.x = -1.80;
+    frontElbow.rotation.x = -1.60;
     this.batPivot.rotation.set(0, sign * -0.40, 0);
     this.batter.rHip.rotation.x = 0.08;
     this.batter.lHip.rotation.x = 0.08;
@@ -1397,9 +1424,9 @@ export class ThreeScene {
 
     const armLower = lerp(-0.30, -0.90, this.batHeightNorm);
     this.batter.rShoulder.rotation.x = armLower;
-    this.batter.rShoulder.rotation.z = sign * -0.20;
+    this.batter.rShoulder.rotation.z = -0.20;
     this.batter.lShoulder.rotation.x = armLower;
-    this.batter.lShoulder.rotation.z = sign * 0.20;
+    this.batter.lShoulder.rotation.z = 0.20;
     this.batter.rElbow.rotation.x = lerp(-0.80, -1.40, this.batHeightNorm);
     this.batter.lElbow.rotation.x = lerp(-0.80, -1.40, this.batHeightNorm);
     this.batter.rHip.rotation.x = 0.12;
@@ -1590,12 +1617,17 @@ export class ThreeScene {
     const armFwd = lerp(-0.50, 0.15, armT) - hOff;
     const armSpread = lerp(-0.60, 0.05, armT) - Math.abs(hOff) * 0.22;
     const elbowBend = lerp(-1.80, -0.15, Math.max(0, Math.min(1, (t - 0.12) / 0.55))) + hOff * 0.40;
-    this.batter.rShoulder.rotation.x = armFwd;
-    this.batter.lShoulder.rotation.x = armFwd - 0.10;
-    this.batter.rShoulder.rotation.z = sign * armSpread;
-    this.batter.lShoulder.rotation.z = sign * -armSpread;
-    this.batter.rElbow.rotation.x = elbowBend;
-    this.batter.lElbow.rotation.x = elbowBend + 0.15;
+    const isRight = this.batterSide === 'right';
+    const batShoulder = isRight ? this.batter.rShoulder : this.batter.lShoulder;
+    const frontShoulder = isRight ? this.batter.lShoulder : this.batter.rShoulder;
+    const batElbow = isRight ? this.batter.rElbow : this.batter.lElbow;
+    const frontElbow = isRight ? this.batter.lElbow : this.batter.rElbow;
+    batShoulder.rotation.x = armFwd;
+    frontShoulder.rotation.x = armFwd - 0.10;
+    batShoulder.rotation.z = (isRight ? -1 : 1) * armSpread;
+    frontShoulder.rotation.z = (isRight ? 1 : -1) * armSpread;
+    batElbow.rotation.x = elbowBend;
+    frontElbow.rotation.x = elbowBend + 0.15;
 
     const tipNow = new THREE.Vector3();
     this.bat.tipMarker.getWorldPosition(tipNow);

@@ -30,6 +30,7 @@ export enum PitchType {
   Changeup = 'CHANGEUP',
   Sinker = 'SINKER',
   Splitter = 'SPLITTER',
+  Knuckleball = 'KNUCKLEBALL',
 }
 
 export interface PitchConfig {

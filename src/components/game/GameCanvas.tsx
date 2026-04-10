@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
 import { GameLoop } from '@/engine/GameLoop';
@@ -114,6 +114,23 @@ export default function GameCanvas() {
     : !store.speedBarValue ? 'speed'
     : 'done';
   const isPractice = store.practiceMode;
+
+  const autoLockScheduled = useRef(false);
+  const scheduleAutoLock = useCallback((fn: () => void) => {
+    if (autoLockScheduled.current) return;
+    autoLockScheduled.current = true;
+    requestAnimationFrame(() => { autoLockScheduled.current = false; fn(); });
+  }, []);
+
+  useEffect(() => {
+    if (!isPractice || store.isPlayerBatting) return;
+    const gs = useGameStore.getState();
+    if (pitchStep === 'accuracy' && gs.practiceAccuracy !== null) {
+      scheduleAutoLock(() => game.handleAccuracyLock(gs.practiceAccuracy!));
+    } else if (pitchStep === 'speed' && gs.practicePower !== null) {
+      scheduleAutoLock(() => game.handleSpeedLock(gs.practicePower!));
+    }
+  }, [pitchStep, isPractice, store.isPlayerBatting, game.handleAccuracyLock, game.handleSpeedLock, scheduleAutoLock]);
 
   /* =========== JSX =========== */
 

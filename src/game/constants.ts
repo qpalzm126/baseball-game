@@ -129,6 +129,15 @@ export const PITCH_CONFIGS: Record<PitchType, PitchConfig> = {
     breakY: 22,
     color: '#06b6d4',
   },
+  [PitchType.Knuckleball]: {
+    type: PitchType.Knuckleball,
+    label: 'Knuckleball',
+    key: 'I',
+    baseSpeed: 72,
+    breakX: 1,
+    breakY: 2,
+    color: '#ec4899',
+  },
 };
 
 export const BATTING_VIEW = {

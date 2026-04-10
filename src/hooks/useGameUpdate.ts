@@ -98,6 +98,12 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   const ballLandedTrailRef = useRef(false);
   const deadBallRef = useRef(false);
   const pitchFlightSpeedRef = useRef(2.2);
+  const currentPitchTypeRef = useRef<PitchType | null>(null);
+  const knucklePhaseRef = useRef<{
+    px: number[]; py: number[]; fx: number[]; fy: number[];
+    ampScale: number; driftX: number; driftY: number; driftPhase: number;
+    chaos: number;
+  } | null>(null);
   const pitchInfoRef = useRef<{ type: PitchType; speed: number } | null>(null);
   const [pitchInfoDisplay, setPitchInfoDisplay] = useState<string | null>(null);
   const pitchInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -227,6 +233,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     windupStartedRef.current = false;
     hitCameraHoldRef.current = 0;
     hasSwungRef.current = false;
+    currentPitchTypeRef.current = null;
+    knucklePhaseRef.current = null;
     sceneRef.current?.resetPitcherAnimation();
     sceneRef.current?.clearTrail();
   }
@@ -448,14 +456,55 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     }
   }
 
+  /**
+   * Compute knuckleball wobble offset at a given flight progress t (0..1).
+   * Uses multiple sine harmonics with random phases and slightly randomized
+   * frequencies to simulate the erratic Kármán-vortex-driven flutter of a
+   * low-spin pitch.  The base break is kept near zero so ALL visible movement
+   * comes from this wobble — making each pitch genuinely unpredictable.
+   */
+  function knuckleWobble(t: number, phases: {
+    px: number[]; py: number[]; fx?: number[]; fy?: number[];
+    ampScale?: number; driftX?: number; driftY?: number; driftPhase?: number;
+    chaos?: number;
+  }): { dx: number; dy: number } {
+    const chaos = phases.chaos ?? 0.5;
+    const envelope = Math.sin(t * Math.PI);
+    const baseAmps = [0.24, 0.17, 0.12, 0.08, 0.05];
+    const defaultFx = [1.8, 3.1, 4.7, 6.3, 8.1];
+    const defaultFy = [1.5, 2.9, 4.3, 5.9, 7.7];
+    const fx = phases.fx ?? defaultFx;
+    const fy = phases.fy ?? defaultFy;
+    const scale = phases.ampScale ?? 1.0;
+    const activeCount = chaos < 0.3 ? 2 : chaos < 0.6 ? 3 : 5;
+    let dx = 0, dy = 0;
+    for (let i = 0; i < activeCount; i++) {
+      dx += baseAmps[i] * Math.sin(fx[i % fx.length] * t * Math.PI * 2 + phases.px[i % phases.px.length]);
+      dy += baseAmps[i] * Math.sin(fy[i % fy.length] * t * Math.PI * 2 + phases.py[i % phases.py.length]);
+    }
+    const driftX = phases.driftX ?? 0;
+    const driftY = phases.driftY ?? 0;
+    const driftPhase = phases.driftPhase ?? 0;
+    const driftBase = Math.sin(t * Math.PI * 0.5 + driftPhase);
+    dx = (dx * scale + driftX * driftBase) * envelope;
+    dy = (dy * scale + driftY * driftBase) * envelope;
+    return { dx, dy };
+  }
+
   function preparePitchPrecise(pitchType: PitchType, aimX: number, aimY: number, accuracy: number, speed: number, isAI: boolean) {
     const config = PITCH_CONFIGS[pitchType];
     const traj = createPitchTrajectory(config, speed, 4);
 
     const maxDeviation = 0.28;
     const deviation = maxDeviation * (1 - accuracy);
-    const actualX = aimX + (Math.random() - 0.5) * 2 * deviation;
-    const actualY = aimY + (Math.random() - 0.5) * 2 * deviation;
+    let actualX = aimX + (Math.random() - 0.5) * 2 * deviation;
+    let actualY = aimY + (Math.random() - 0.5) * 2 * deviation;
+    if (pitchType === PitchType.Knuckleball) {
+      const knuckleDrift = 0.12 + Math.random() * 0.16;
+      const angle = Math.random() * Math.PI * 2;
+      actualX += Math.cos(angle) * knuckleDrift;
+      actualY += Math.sin(angle) * knuckleDrift;
+    }
     pitchEndRef.current = { x: actualX, y: actualY, z: 0 };
 
     const diffCfg = DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty];
@@ -469,6 +518,30 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     const pz = sceneRef.current?.getPitcherZ() ?? -6.4;
     pitchStartRef.current = { x: 0, y: 1.05, z: pz };
     pitchProgressRef.current = 0;
+
+    currentPitchTypeRef.current = pitchType;
+    if (pitchType === PitchType.Knuckleball) {
+      const rp = () => Math.random() * Math.PI * 2;
+      const chaos = Math.random();
+      const freqSpread = chaos < 0.3 ? 0.8 : chaos < 0.6 ? 1.6 : 3.0;
+      const rf = (base: number) => base + (Math.random() - 0.5) * freqSpread;
+      const ampRange = chaos < 0.3 ? 0.7 : chaos < 0.6 ? 1.2 : 2.0;
+      const driftMag = chaos < 0.3 ? 0.28 : chaos < 0.6 ? 0.22 : 0.40;
+      knucklePhaseRef.current = {
+        px: [rp(), rp(), rp(), rp(), rp()],
+        py: [rp(), rp(), rp(), rp(), rp()],
+        fx: [rf(1.8), rf(3.1), rf(4.7), rf(6.3), rf(8.1)],
+        fy: [rf(1.5), rf(2.9), rf(4.3), rf(5.9), rf(7.7)],
+        ampScale: 0.6 + Math.random() * ampRange,
+        driftX: (Math.random() - 0.5) * 2 * driftMag,
+        driftY: (Math.random() - 0.5) * 2 * driftMag,
+        driftPhase: Math.random() * Math.PI * 2,
+        chaos,
+      };
+    } else {
+      knucklePhaseRef.current = null;
+    }
+
     localBallRef.current = {
       position3D: traj.startPos, velocity3D: traj.velocity,
       screenPosition: project3Dto2D(traj.startPos),
@@ -514,6 +587,11 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         pitchBreakRef.current.x, pitchBreakRef.current.y,
         pitchFlightSpeedRef.current,
       );
+      if (knucklePhaseRef.current) {
+        const w = knuckleWobble(pitchProgressRef.current, knucklePhaseRef.current);
+        p3d.x += w.dx;
+        p3d.y += w.dy;
+      }
       const prevP = prevBall3DRef.current.clone();
       ball3DRef.current.copy(p3d);
       pitchBallVelRef.current.copy(p3d.clone().sub(prevP).divideScalar(Math.max(dt, 0.001)));
@@ -594,6 +672,11 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       pitchBreakRef.current.x, pitchBreakRef.current.y,
       pitchFlightSpeedRef.current,
     );
+    if (knucklePhaseRef.current) {
+      const w = knuckleWobble(pitchProgressRef.current, knucklePhaseRef.current);
+      p3d.x += w.dx;
+      p3d.y += w.dy;
+    }
     ball3DRef.current.copy(p3d);
     pitchBallVelRef.current.copy(p3d.clone().sub(prevP).divideScalar(Math.max(dt, 0.001)));
     prevBall3DRef.current.copy(p3d);
@@ -1649,6 +1732,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     if (lastPlayerBattingRef.current !== s.isPlayerBatting) {
       lastPlayerBattingRef.current = s.isPlayerBatting;
       scene.setTeamSides(s.isPlayerBatting);
+      scene.setPitchingCentered(!s.isPlayerBatting);
     }
 
     for (const f of s.fielders) {

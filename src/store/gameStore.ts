@@ -79,6 +79,8 @@ export interface GameStore {
   practiceStrikesOnly: boolean;
   practiceTargetCell: number | null;
   practiceHitType: HitType | null;
+  practiceAccuracy: number | null;
+  practicePower: number | null;
 
   startGame: (settings?: Partial<GameSettings>) => void;
   startPractice: (settings?: Partial<GameSettings>) => void;
@@ -87,6 +89,8 @@ export interface GameStore {
   setPracticeStrikesOnly: (v: boolean) => void;
   setPracticeTargetCell: (cell: number | null) => void;
   setPracticeHitType: (type: HitType | null) => void;
+  setPracticeAccuracy: (v: number | null) => void;
+  setPracticePower: (v: number | null) => void;
   updateSettings: (updates: Partial<GameSettings>) => void;
   setPhase: (phase: GamePhase) => void;
   selectPitch: (pitch: PitchType | null) => void;
@@ -135,6 +139,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   practiceStrikesOnly: false,
   practiceTargetCell: null,
   practiceHitType: null,
+  practiceAccuracy: null,
+  practicePower: null,
 
   startGame: (settings) => {
     const merged = { ...get().settings, ...settings };
@@ -212,6 +218,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setPracticeStrikesOnly: (v) => set({ practiceStrikesOnly: v }),
   setPracticeTargetCell: (cell) => set({ practiceTargetCell: cell }),
   setPracticeHitType: (type) => set({ practiceHitType: type }),
+  setPracticeAccuracy: (v) => set({ practiceAccuracy: v }),
+  setPracticePower: (v) => set({ practicePower: v }),
 
   updateSettings: (updates) => set({ settings: { ...get().settings, ...updates } }),
 

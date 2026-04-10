@@ -34,6 +34,8 @@ export default function PracticePage() {
   const practiceStrikesOnly = useGameStore((s) => s.practiceStrikesOnly);
   const practiceTargetCell = useGameStore((s) => s.practiceTargetCell);
   const practiceHitType = useGameStore((s) => s.practiceHitType);
+  const practiceAccuracy = useGameStore((s) => s.practiceAccuracy);
+  const practicePower = useGameStore((s) => s.practicePower);
   const isPlayerBatting = useGameStore((s) => s.isPlayerBatting);
 
   const [ready, setReady] = useState(false);
@@ -204,6 +206,51 @@ export default function PracticePage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="w-px h-5 bg-gray-700" />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => useGameStore.getState().setPracticeAccuracy(practiceAccuracy === null ? 0.85 : null)}
+                  className={`text-[10px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded transition-all ${
+                    practiceAccuracy !== null ? 'text-green-400' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  ACC
+                </button>
+                {practiceAccuracy !== null && (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="range" min="0" max="100" step="5"
+                      value={Math.round(practiceAccuracy * 100)}
+                      onChange={(e) => useGameStore.getState().setPracticeAccuracy(Number(e.target.value) / 100)}
+                      className="w-16 h-1 accent-green-500"
+                    />
+                    <span className="text-green-400 text-[10px] font-mono w-7">{Math.round(practiceAccuracy * 100)}%</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => useGameStore.getState().setPracticePower(practicePower === null ? 0.85 : null)}
+                  className={`text-[10px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded transition-all ${
+                    practicePower !== null ? 'text-cyan-400' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  PWR
+                </button>
+                {practicePower !== null && (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="range" min="0" max="100" step="5"
+                      value={Math.round(practicePower * 100)}
+                      onChange={(e) => useGameStore.getState().setPracticePower(Number(e.target.value) / 100)}
+                      className="w-16 h-1 accent-cyan-500"
+                    />
+                    <span className="text-cyan-400 text-[10px] font-mono w-7">{Math.round(practicePower * 100)}%</span>
+                  </div>
+                )}
               </div>
             </>
           )}
