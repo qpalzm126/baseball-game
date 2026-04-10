@@ -1,6 +1,7 @@
 'use client';
 
 import { useGameStore } from '@/store/gameStore';
+import { useMultiplayerStore } from '@/store/multiplayerStore';
 
 export default function Scoreboard() {
   const inning = useGameStore((s) => s.inning);
@@ -10,6 +11,12 @@ export default function Scoreboard() {
   const settings = useGameStore((s) => s.settings);
   const isPlayerBatting = useGameStore((s) => s.isPlayerBatting);
   const runners = useGameStore((s) => s.runners);
+  const isMultiplayer = useMultiplayerStore((s) => s.isMultiplayer);
+  const isHost = useMultiplayerStore((s) => s.isHost);
+
+  const myScore = (isMultiplayer && isHost) ? score.home : score.away;
+  const oppScore = (isMultiplayer && isHost) ? score.away : score.home;
+  const oppLabel = isMultiplayer ? 'OPP' : 'CPU';
 
   return (
     <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-800 rounded-xl px-5 py-2.5 flex items-center gap-5 text-sm shadow-lg">
@@ -30,16 +37,16 @@ export default function Scoreboard() {
           <span className={`font-bold text-lg leading-tight mt-0.5 ${
             isPlayerBatting ? 'text-yellow-400' : ''
           }`}>
-            {score.away}
+            {myScore}
           </span>
         </div>
         <div className="text-gray-700 self-center text-xs">vs</div>
         <div className="flex flex-col items-center min-w-[36px]">
-          <span className="text-[9px] text-gray-500 uppercase tracking-wider font-medium">CPU</span>
+          <span className="text-[9px] text-gray-500 uppercase tracking-wider font-medium">{oppLabel}</span>
           <span className={`font-bold text-lg leading-tight mt-0.5 ${
             !isPlayerBatting ? 'text-yellow-400' : ''
           }`}>
-            {score.home}
+            {oppScore}
           </span>
         </div>
       </div>

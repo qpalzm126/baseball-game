@@ -107,7 +107,7 @@ export default function GameCanvas() {
 
   /* =========== DERIVED STATE =========== */
 
-  const showPitchControls = !store.isPlayerBatting && store.phase === GamePhase.PrePitch;
+  const showPitchControls = !store.isPlayerBatting && store.phase === GamePhase.PrePitch && !paused;
   const pitchStep = !store.selectedPitch ? 'type'
     : !store.pitchAimPos ? 'aim'
     : store.accuracyValue === null ? 'accuracy'
@@ -232,7 +232,7 @@ export default function GameCanvas() {
         {showBattingTutorial && <BattingTutorial onDismiss={dismissTutorial} />}
       </div>
 
-      {!isPractice && store.phase === GamePhase.GameOver && (
+      {!isPractice && !useMultiplayerStore.getState().isMultiplayer && store.phase === GamePhase.GameOver && (
         <div className="flex flex-col items-center gap-3">
           <div className="text-center">
             <div className="text-yellow-400 font-bold text-2xl mb-1">GAME OVER</div>

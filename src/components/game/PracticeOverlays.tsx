@@ -137,7 +137,7 @@ export default function PracticeOverlays({
         </div>
       )}
 
-      {!isPlayerBatting && lastPitchResult && (
+      {!isPlayerBatting && pitchStep !== 'type' && lastPitchResult && (
         <div className="absolute top-2 right-2 z-20 pointer-events-none">
           <div className="bg-black/80 backdrop-blur-sm rounded-xl border border-gray-600/40 p-3 min-w-[180px]">
             <div className="text-[10px] text-gray-500 font-bold tracking-widest uppercase mb-1.5">Last Pitch</div>

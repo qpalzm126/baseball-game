@@ -59,13 +59,17 @@ export default function PvPGamePage() {
         </div>
       </div>
 
-      {phase === 'GAME_OVER' && (
+      {phase === 'GAME_OVER' && (() => {
+        const mp = useMultiplayerStore.getState();
+        const myScore = mp.isHost ? score.home : score.away;
+        const oppScore = mp.isHost ? score.away : score.home;
+        return (
         <div className="flex flex-col items-center gap-3 mt-4">
           <div className="text-center">
             <div className="text-yellow-400 font-bold text-2xl mb-1">GAME OVER</div>
             <div className="text-white text-lg">
-              {score.away > score.home ? 'You Win!' : score.home > score.away ? `${opponentName} Wins!` : "It's a Tie!"}
-              {' '}{score.away} - {score.home}
+              {myScore > oppScore ? 'You Win!' : oppScore > myScore ? `${opponentName} Wins!` : "It's a Tie!"}
+              {' '}{myScore} - {oppScore}
             </div>
           </div>
           <button
@@ -75,7 +79,8 @@ export default function PvPGamePage() {
             Back to Menu
           </button>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

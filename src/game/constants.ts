@@ -245,22 +245,36 @@ export const FIELD_SIZE_ORDER: FieldSize[] = [
 ];
 
 const PRO_WALL_RADIUS = 900;
+const INFIELD_EDGE_RADIUS = 280;
 
 export function getScaledFielderDefaults(fieldSize: FieldSize): Record<FielderPosition, Vec2> {
-  const ratio = FIELD_SIZE_CONFIGS[fieldSize].wallRadiusGU / PRO_WALL_RADIUS;
+  const cfg = FIELD_SIZE_CONFIGS[fieldSize];
+  const wallRadius = cfg.wallRadiusGU;
   const hp = HOME_PLATE;
   const base = FIELDER_DEFAULTS;
   const result = {} as Record<FielderPosition, Vec2>;
+
+  const proOutfieldZone = PRO_WALL_RADIUS - INFIELD_EDGE_RADIUS;
+  const curOutfieldZone = wallRadius - INFIELD_EDGE_RADIUS;
+
   for (const pos of Object.values(FielderPosition)) {
     const def = base[pos];
+
     const isOutfielder =
       pos === FielderPosition.LeftField ||
       pos === FielderPosition.CenterField ||
       pos === FielderPosition.RightField;
+
     if (isOutfielder) {
+      const dx = def.x - hp.x;
+      const dy = def.y - hp.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dx, dy);
+      const depthFraction = Math.max(0, (dist - INFIELD_EDGE_RADIUS) / proOutfieldZone);
+      const newDist = INFIELD_EDGE_RADIUS + curOutfieldZone * depthFraction;
       result[pos] = {
-        x: hp.x + (def.x - hp.x) * ratio,
-        y: hp.y + (def.y - hp.y) * ratio,
+        x: hp.x + Math.sin(angle) * newDist,
+        y: hp.y + Math.cos(angle) * newDist,
       };
     } else {
       result[pos] = { ...def };

@@ -55,7 +55,7 @@ import {
 import { project3Dto2D, distance } from '@/utils/math';
 import { getSocket } from '@/lib/socketClient';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
-import type { AtBatResultPayload, PlayResolvedPayload } from '@/server/protocol';
+import type { AtBatResultPayload, PlayResolvedPayload, ThrowCommandPayload } from '@/server/protocol';
 import type { HitDebugData, PracticeStatsData, PitchPracticeStatsData, LastPitchResultData } from '@/components/game/PracticeOverlays';
 
 interface GameUpdateDeps {
@@ -331,11 +331,42 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   }
 
   /** Apply remote throw commands queued by the opponent. */
-  function applyRemoteThrowCommands(s: ReturnType<typeof useGameStore.getState>) {
+  function applyRemoteThrowCommands(_s: ReturnType<typeof useGameStore.getState>) {
     const mpStore = useMultiplayerStore.getState();
-    let cmd;
-    while ((cmd = mpStore.shiftRemoteThrowCommand())) {
-      doThrowToBase(cmd.throwTarget, s);
+    for (let cmd = mpStore.shiftRemoteThrowCommand(); cmd; cmd = mpStore.shiftRemoteThrowCommand()) {
+      const gs = useGameStore.getState();
+      const from = gs.fielders.find((f) => f.id === cmd.fromFielderId);
+      if (!from) continue;
+
+      // Reconcile hasBall so the local state matches the remote authority
+      for (const f of gs.fielders) {
+        if (f.hasBall && f.id !== from.id) gs.updateFielder(f.id, { hasBall: false });
+      }
+      gs.updateFielder(from.id, { hasBall: true });
+
+      // Ensure ball exists for the throw
+      if (!localBallRef.current) {
+        localBallRef.current = {
+          position3D: { x: from.location.x, y: from.location.y, z: 5 },
+          velocity3D: { x: 0, y: 0, z: 0 },
+          screenPosition: { x: 0, y: 0 },
+          isInPlay: true, isLanded: false, landingPosition: null,
+          heldByFielder: from.id, thrownByFielder: null,
+        };
+      } else {
+        localBallRef.current = { ...localBallRef.current, heldByFielder: from.id };
+      }
+
+      // Find closest fielder to the throw target and execute throw
+      const freshGs = useGameStore.getState();
+      let closest: { id: number; location: Vec2 } | null = null;
+      let closestDist = Infinity;
+      for (const f of freshGs.fielders) {
+        if (f.id === from.id) continue;
+        const d = distance(f.location, cmd.throwTarget);
+        if (d < closestDist) { closest = f; closestDist = d; }
+      }
+      if (closest) doThrow(from.id, closest, freshGs);
     }
   }
 
@@ -1377,19 +1408,21 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       practiceTimerRef.current += dt;
       const ball = localBallRef.current;
 
-      if (ball.hitWall && hitTypeRef.current !== HitType.HomeRun) {
-        hitTypeRef.current = HitType.HomeRun;
-        showAnnouncement('HOME RUN!', 2.5);
-        if (storeRef.current.isPlayerBatting) {
-          setPracticeStats((p) => ({ ...p, homeRuns: p.homeRuns + 1 }));
+      if ((ball.hitWall || ball.bounceOverWall) && hitTypeRef.current !== HitType.HomeRun && hitTypeRef.current !== HitType.LineDrive) {
+        if (!isFoulTerritory(ball.position3D.x, ball.position3D.y)) {
+          if (ball.hitWall) {
+            hitTypeRef.current = HitType.HomeRun;
+            showAnnouncement('HOME RUN!', 2.5);
+            if (storeRef.current.isPlayerBatting) {
+              setPracticeStats((p) => ({ ...p, homeRuns: p.homeRuns + 1 }));
+            }
+            setHitDebug((prev) => prev ? { ...prev, hitType: HitType.HomeRun } : prev);
+          } else {
+            hitTypeRef.current = HitType.LineDrive;
+            showAnnouncement('GROUND RULE DOUBLE!', 2.0);
+            setHitDebug((prev) => prev ? { ...prev, hitType: HitType.LineDrive } : prev);
+          }
         }
-        setHitDebug((prev) => prev ? { ...prev, hitType: HitType.HomeRun } : prev);
-      }
-
-      if (ball.bounceOverWall && hitTypeRef.current !== HitType.HomeRun && hitTypeRef.current !== HitType.LineDrive) {
-        hitTypeRef.current = HitType.LineDrive;
-        showAnnouncement('GROUND RULE DOUBLE!', 2.0);
-        setHitDebug((prev) => prev ? { ...prev, hitType: HitType.LineDrive } : prev);
       }
 
       const dx = ball.position3D.x - HOME_PLATE.x;
@@ -1408,38 +1441,50 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       return;
     }
 
-    if (localBallRef.current.hitWall) {
-      hitTypeRef.current = HitType.HomeRun;
-      showAnnouncement('HOME RUN!', 2.5);
-      sceneRef.current?.hideBall();
-      localBallRef.current = null;
-      phaseTimerRef.current = 0;
-      deadBallRef.current = true;
-      if (storeRef.current.practiceMode && storeRef.current.isPlayerBatting) {
-        setPracticeStats((p) => ({ ...p, homeRuns: p.homeRuns + 1 }));
+    if (localBallRef.current.hitWall || localBallRef.current.bounceOverWall) {
+      const bp = localBallRef.current.position3D;
+      if (isFoulTerritory(bp.x, bp.y)) {
+        hitTypeRef.current = HitType.Foul;
+        showAnnouncement('FOUL', 0.8);
+        const gs = useGameStore.getState();
+        if (gs.count.strikes < 2) gs.advanceCount('strike');
+        for (const r of gs.runners) { gs.removeRunner(r.id); sceneRef.current?.removeRunner(r.id); }
+        localBallRef.current = null;
+        sceneRef.current?.hideBall();
+        goToPrePitch();
+        return;
       }
-      const gs = useGameStore.getState();
-      for (const runner of gs.runners) {
-        gs.updateRunner(runner.id, { targetBase: BaseType.Home });
-      }
-      return;
-    }
 
-    if (localBallRef.current.bounceOverWall) {
-      hitTypeRef.current = HitType.LineDrive;
-      showAnnouncement('GROUND RULE DOUBLE!', 2.0);
-      sceneRef.current?.hideBall();
-      localBallRef.current = null;
-      phaseTimerRef.current = 0;
-      deadBallRef.current = true;
-      const gs = useGameStore.getState();
-      for (const runner of gs.runners) {
-        const cur = runner.currentBase;
-        let target: BaseType;
-        if (cur === BaseType.Third || cur === BaseType.Second) target = BaseType.Home;
-        else if (cur === BaseType.First) target = BaseType.Third;
-        else target = BaseType.Second;
-        gs.updateRunner(runner.id, { targetBase: target });
+      if (localBallRef.current.hitWall) {
+        hitTypeRef.current = HitType.HomeRun;
+        showAnnouncement('HOME RUN!', 2.5);
+        sceneRef.current?.hideBall();
+        localBallRef.current = null;
+        phaseTimerRef.current = 0;
+        deadBallRef.current = true;
+        if (storeRef.current.practiceMode && storeRef.current.isPlayerBatting) {
+          setPracticeStats((p) => ({ ...p, homeRuns: p.homeRuns + 1 }));
+        }
+        const gs = useGameStore.getState();
+        for (const runner of gs.runners) {
+          gs.updateRunner(runner.id, { targetBase: BaseType.Home });
+        }
+      } else {
+        hitTypeRef.current = HitType.LineDrive;
+        showAnnouncement('GROUND RULE DOUBLE!', 2.0);
+        sceneRef.current?.hideBall();
+        localBallRef.current = null;
+        phaseTimerRef.current = 0;
+        deadBallRef.current = true;
+        const gs = useGameStore.getState();
+        for (const runner of gs.runners) {
+          const cur = runner.currentBase;
+          let target: BaseType;
+          if (cur === BaseType.Third || cur === BaseType.Second) target = BaseType.Home;
+          else if (cur === BaseType.First) target = BaseType.Third;
+          else target = BaseType.Second;
+          gs.updateRunner(runner.id, { targetBase: target });
+        }
       }
       return;
     }
@@ -1576,6 +1621,21 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     }
   }
 
+  function checkWalkOff(): boolean {
+    const gs = useGameStore.getState();
+    const { inning, settings, score } = gs;
+    if (inning.isTop || inning.number < settings.totalInnings) return false;
+    if (score.home > score.away) {
+      showAnnouncement('WALK-OFF!', 2.5);
+      deadBallRef.current = true;
+      localBallRef.current = null;
+      sceneRef.current?.hideBall();
+      useGameStore.setState({ phase: GamePhase.GameOver });
+      return true;
+    }
+    return false;
+  }
+
   function updateRunnersOnField(s: ReturnType<typeof useGameStore.getState>, dt: number) {
     const gs = useGameStore.getState();
     for (const runner of s.runners) {
@@ -1583,9 +1643,10 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       const updated = updateRunnerMovement(runner, dt);
       gs.updateRunner(runner.id, { position: updated.position, currentBase: updated.currentBase });
       if (checkRunnerScored(updated)) {
-        gs.scoreRun(s.isPlayerBatting ? 'away' : 'home');
+        gs.scoreRun(s.inning.isTop ? 'away' : 'home');
         gs.removeRunner(runner.id);
         sceneRef.current?.removeRunner(runner.id);
+        if (checkWalkOff()) return;
       }
     }
   }
@@ -1729,7 +1790,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       const onSecond = gs.runners.some((r) => r.currentBase === BaseType.Second);
       for (const runner of gs.runners) {
         if (runner.currentBase === BaseType.Third && onFirst && onSecond) {
-          gs.scoreRun(s.isPlayerBatting ? 'away' : 'home'); gs.removeRunner(runner.id);
+          gs.scoreRun(s.inning.isTop ? 'away' : 'home'); gs.removeRunner(runner.id);
         } else if (runner.currentBase === BaseType.Second && onFirst) {
           gs.updateRunner(runner.id, { targetBase: BaseType.Third });
         } else if (runner.currentBase === BaseType.First) {
@@ -1745,7 +1806,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       const allSettled = fresh.runners.every((r) => r.currentBase === r.targetBase || r.isOut);
       if (allSettled) {
         walkRunnersDispatchedRef.current = false;
-        goToPrePitch();
+        if (!checkWalkOff()) goToPrePitch();
       }
     }
   }
@@ -1976,7 +2037,16 @@ export function useGameUpdate(deps: GameUpdateDeps) {
           ballLandedTrailRef.current = true;
           scene.setTrailColor('landed');
         }
-        scene.updateBallFromGameCoords(ball.position3D.x, ball.position3D.y, ball.position3D.z);
+        if (ball.heldByFielder !== null) {
+          const holder = s.fielders.find((f) => f.id === ball.heldByFielder);
+          if (holder) {
+            scene.updateBallFromGameCoords(holder.location.x, holder.location.y, 5);
+          } else {
+            scene.updateBallFromGameCoords(ball.position3D.x, ball.position3D.y, ball.position3D.z);
+          }
+        } else {
+          scene.updateBallFromGameCoords(ball.position3D.x, ball.position3D.y, ball.position3D.z);
+        }
       } else if (ballReleasedRef.current && pitchProgressRef.current > 0) {
         const p3d = scene.getPitchBallPos(
           pitchProgressRef.current,
@@ -2000,17 +2070,17 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   /* =========== UI handlers =========== */
 
   const handlePitchSelect = (pitch: PitchType) => {
-    if (storeRef.current.isPlayerBatting) return;
+    if (storeRef.current.isPlayerBatting || pausedRef.current) return;
     useGameStore.getState().selectPitch(pitch);
   };
 
   const handleAccuracyLock = (value: number) => {
-    if (storeRef.current.isPlayerBatting) return;
+    if (storeRef.current.isPlayerBatting || pausedRef.current) return;
     useGameStore.getState().setAccuracyValue(value);
   };
 
   const handleSpeedLock = (value: number) => {
-    if (storeRef.current.isPlayerBatting) return;
+    if (storeRef.current.isPlayerBatting || pausedRef.current) return;
     const s = useGameStore.getState();
     if (!s.selectedPitch || !s.pitchAimPos || s.accuracyValue === null) return;
     resetPitchState();
