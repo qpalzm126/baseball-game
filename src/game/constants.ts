@@ -24,9 +24,9 @@ export const FIELDER_DEFAULTS: Record<FielderPosition, Vec2> = {
   [FielderPosition.SecondBase]: { x: 520, y: 280 },
   [FielderPosition.ThirdBase]: { x: 290, y: 370 },
   [FielderPosition.Shortstop]: { x: 380, y: 280 },
-  [FielderPosition.LeftField]: { x: 200, y: 180 },
-  [FielderPosition.CenterField]: { x: 450, y: 120 },
-  [FielderPosition.RightField]: { x: 700, y: 180 },
+  [FielderPosition.LeftField]: { x: 157, y: 121 },
+  [FielderPosition.CenterField]: { x: 450, y: 25 },
+  [FielderPosition.RightField]: { x: 743, y: 121 },
 };
 
 export const FIELDER_HOTKEYS: Record<FielderPosition, string> = {
