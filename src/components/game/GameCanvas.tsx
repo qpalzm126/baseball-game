@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
 import { GameLoop } from '@/engine/GameLoop';
@@ -9,6 +9,7 @@ import { ThreeScene } from '@/engine/ThreeScene';
 import { AIController } from '@/game/AIController';
 import { GamePhase, PitchType } from '@/game/types';
 import { PITCH_CONFIGS, DIFFICULTY_CONFIGS, FIELD_SIZE_CONFIGS } from '@/game/constants';
+import { getPitcherProfile } from '@/game/pitcherProfiles';
 
 import { usePauseControl } from '@/hooks/usePauseControl';
 import { useBattingTutorial } from '@/hooks/useBattingTutorial';
@@ -31,6 +32,8 @@ export default function GameCanvas() {
   const storeRef = useRef(useGameStore.getState());
 
   const store = useGameStore();
+  const [introActive, setIntroActive] = useState(false);
+  const introRef = useRef(false);
 
   const { paused, pausedRef, windowHiddenRef, togglePause, resumeGame, quitGame, restartGame } = usePauseControl();
 
@@ -46,6 +49,7 @@ export default function GameCanvas() {
     showBattingTutorialRef,
     pausedRef,
     windowHiddenRef,
+    introRef,
   });
 
   const { showBattingTutorial, dismissTutorial } = useBattingTutorial(
@@ -62,8 +66,11 @@ export default function GameCanvas() {
   }, []);
 
   useEffect(() => {
-    aiRef.current = new AIController(store.settings.difficulty);
-  }, [store.settings.difficulty]);
+    const profile = store.settings.challengeProfile
+      ? getPitcherProfile(store.settings.challengeProfile)
+      : undefined;
+    aiRef.current = new AIController(store.settings.difficulty, profile);
+  }, [store.settings.difficulty, store.settings.challengeProfile]);
 
   useEffect(() => {
     sceneRef.current?.setBatterSide(store.settings.batterSide);
@@ -89,6 +96,21 @@ export default function GameCanvas() {
     threeScene.setPitcherHand(storeRef.current.settings.pitcherHand);
     const initFieldCfg = FIELD_SIZE_CONFIGS[storeRef.current.settings.fieldSize];
     threeScene.setFieldSize(initFieldCfg.wallRadiusGU, initFieldCfg.wallHeightGU, initFieldCfg.moundDistanceFt);
+    const cp = storeRef.current.settings.challengeProfile;
+    if (cp) {
+      const prof = getPitcherProfile(cp);
+      if (prof?.faceImage) threeScene.setPitcherFace(prof.faceImage);
+      threeScene.startPitcherCloseUp();
+      introRef.current = true;
+      setIntroActive(true);
+      setTimeout(() => {
+        threeScene.endPitcherCloseUp();
+      }, 2000);
+      setTimeout(() => {
+        introRef.current = false;
+        setIntroActive(false);
+      }, 3200);
+    }
     inputRef.current.attach(threeScene.getDomElement());
     const loop = new GameLoop(game.update, game.render);
     if (useMultiplayerStore.getState().isMultiplayer) {
@@ -230,14 +252,35 @@ export default function GameCanvas() {
         {paused && <PauseMenu onResume={resumeGame} onQuit={quitGame} onRestart={restartGame} settings={store.settings} />}
 
         {showBattingTutorial && <BattingTutorial onDismiss={dismissTutorial} />}
+
+        {introActive && (() => {
+          const prof = getPitcherProfile(store.settings.challengeProfile ?? '');
+          if (!prof) return null;
+          return (
+            <div className="absolute inset-0 z-40 flex items-end justify-center pointer-events-none pb-16">
+              <div className="text-center animate-fade-in">
+                <div className="text-red-400 text-xs font-bold tracking-[0.3em] uppercase mb-1">Challenge Mode</div>
+                <div className="text-white text-3xl font-extrabold mb-1">{prof.nameJa}</div>
+                <div className="text-gray-400 text-sm">{prof.name}</div>
+                <div className="text-gray-500 text-xs mt-2">
+                  {prof.pitches.map((p) => p.type.replace('_', ' ')).join(' · ')}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
-      {!isPractice && !useMultiplayerStore.getState().isMultiplayer && store.phase === GamePhase.GameOver && (
+      {!isPractice && !useMultiplayerStore.getState().isMultiplayer && store.phase === GamePhase.GameOver && (() => {
+        const cp = store.settings.challengeProfile;
+        const prof = cp ? getPitcherProfile(cp) : undefined;
+        const oppName = prof ? prof.name : 'CPU';
+        return (
         <div className="flex flex-col items-center gap-3">
           <div className="text-center">
             <div className="text-yellow-400 font-bold text-2xl mb-1">GAME OVER</div>
             <div className="text-white text-lg">
-              {store.score.away > store.score.home ? 'You Win!' : store.score.home > store.score.away ? 'CPU Wins!' : "It's a Tie!"}{' '}{store.score.away} - {store.score.home}
+              {store.score.away > store.score.home ? 'You Win!' : store.score.home > store.score.away ? `${oppName} Wins!` : "It's a Tie!"}{' '}{store.score.away} - {store.score.home}
             </div>
           </div>
           <button onClick={() => { game.handlePlayAgain(); store.startGame(store.settings); }}
@@ -245,7 +288,8 @@ export default function GameCanvas() {
             Play Again
           </button>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

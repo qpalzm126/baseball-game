@@ -31,6 +31,7 @@ export enum PitchType {
   Sinker = 'SINKER',
   Splitter = 'SPLITTER',
   Knuckleball = 'KNUCKLEBALL',
+  Cutter = 'CUTTER',
 }
 
 export interface PitchConfig {
@@ -239,4 +240,24 @@ export interface GameSettings {
   batterSide: BatterSide;
   pitcherHand: PitcherHand;
   fieldSize: FieldSize;
+  challengeProfile?: string;
+}
+
+export interface PitcherPitchConfig {
+  type: PitchType;
+  baseSpeed: number;
+  breakX: number;
+  breakY: number;
+  weight: number;
+}
+
+export interface PitcherProfile {
+  id: string;
+  name: string;
+  nameJa: string;
+  hand: PitcherHand;
+  pitches: PitcherPitchConfig[];
+  accuracy: number;
+  difficulty: Difficulty;
+  faceImage?: string;
 }

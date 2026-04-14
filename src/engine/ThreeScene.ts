@@ -737,6 +737,23 @@ export class ThreeScene {
     this.resetPitcherAnimation();
   }
 
+  setPitcherFace(imagePath: string) {
+    const loader = new THREE.TextureLoader();
+    loader.load(imagePath, (texture) => {
+      const faceMat = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        side: THREE.DoubleSide,
+      });
+      const faceGeo = new THREE.PlaneGeometry(0.14, 0.14);
+      const facePlane = new THREE.Mesh(faceGeo, faceMat);
+      // Pitcher root is rotated Math.PI, so local -Z faces the batter
+      facePlane.position.set(0, 0, -0.097);
+      facePlane.rotation.y = Math.PI;
+      this.pitcher.head.add(facePlane);
+    });
+  }
+
   getPitcherHand(): PitcherHand { return this.pitcherHand; }
 
   private buildStrikeZone() {
@@ -1188,6 +1205,36 @@ export class ThreeScene {
     this.standsTargetOpacity = 0.85;
     if (instant) this.applyStandsOpacity(0.85);
   }
+
+  private introActive = false;
+
+  startPitcherCloseUp() {
+    this.introActive = true;
+    this.pitcher.root.visible = true;
+    const headY = 0.95;
+    const faceZ = this.pitcherZ + 1.2;
+    this.camera.position.set(0, headY, faceZ);
+    this.camera.lookAt(0, headY, this.pitcherZ);
+    this.camPosFrom.set(0, headY, faceZ);
+    this.camLookFrom.set(0, headY, this.pitcherZ);
+    this.camPosTo.set(0, headY, faceZ);
+    this.camLookTo.set(0, headY, this.pitcherZ);
+    this.camLookCur.set(0, headY, this.pitcherZ);
+    this.camT = 1;
+  }
+
+  endPitcherCloseUp() {
+    if (!this.introActive) return;
+    this.introActive = false;
+    this.camPosFrom.copy(this.camera.position);
+    this.camLookFrom.copy(this.camLookCur);
+    this.camPosTo.copy(this.getBattingCamPos());
+    this.camLookTo.copy(this.getBattingCamLookAt());
+    this.camSpeed = 1.8;
+    this.camT = 0;
+  }
+
+  isIntroActive(): boolean { return this.introActive; }
 
   setPitchingCentered(v: boolean) {
     if (this.pitchingCentered === v) return;

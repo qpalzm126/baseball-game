@@ -138,6 +138,15 @@ export const PITCH_CONFIGS: Record<PitchType, PitchConfig> = {
     breakY: 2,
     color: '#ec4899',
   },
+  [PitchType.Cutter]: {
+    type: PitchType.Cutter,
+    label: 'Cutter',
+    key: 'D',
+    baseSpeed: 91,
+    breakX: -6,
+    breakY: 4,
+    color: '#f472b6',
+  },
 };
 
 export const BATTING_VIEW = {

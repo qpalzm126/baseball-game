@@ -66,10 +66,11 @@ interface GameUpdateDeps {
   showBattingTutorialRef: MutableRefObject<boolean>;
   pausedRef: MutableRefObject<boolean>;
   windowHiddenRef: MutableRefObject<boolean>;
+  introRef?: MutableRefObject<boolean>;
 }
 
 export function useGameUpdate(deps: GameUpdateDeps) {
-  const { sceneRef, inputRef, aiRef, storeRef, showBattingTutorialRef, pausedRef, windowHiddenRef } = deps;
+  const { sceneRef, inputRef, aiRef, storeRef, showBattingTutorialRef, pausedRef, windowHiddenRef, introRef } = deps;
 
   const lastPlayerBattingRef = useRef<boolean | null>(null);
   const localBallRef = useRef<BallState | null>(null);
@@ -137,6 +138,18 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
   function getFieldCfg() {
     return FIELD_SIZE_CONFIGS[storeRef.current.settings.fieldSize];
+  }
+
+  function getEffectivePitchConfig(pitchType: PitchType) {
+    const profile = aiRef.current?.getProfile();
+    if (profile) {
+      const match = profile.pitches.find((p) => p.type === pitchType);
+      if (match) {
+        const base = PITCH_CONFIGS[pitchType];
+        return { ...base, baseSpeed: match.baseSpeed, breakX: match.breakX, breakY: match.breakY };
+      }
+    }
+    return PITCH_CONFIGS[pitchType];
   }
 
   function showAnnouncement(text: string, duration: number = 1.0) {
@@ -612,7 +625,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
           aimX = (col - 1) * (SZ_HW * 2 / 3);
           aimY = SZ_BOT + (1 - row / 2) * SZ_H;
         }
-        const aiAccuracy = DIFFICULTY_CONFIGS[gs.settings.difficulty].aiPitchAccuracy;
+        const profileAccuracy = aiRef.current?.getProfile()?.accuracy;
+        const aiAccuracy = profileAccuracy ?? DIFFICULTY_CONFIGS[gs.settings.difficulty].aiPitchAccuracy;
         preparePitchPrecise(decision.type, aimX, aimY, aiAccuracy, decision.speed, true);
         pitchInfoRef.current = { type: decision.type, speed: decision.speed };
         phaseTimerRef.current = 0;
@@ -694,7 +708,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   }
 
   function preparePitchPrecise(pitchType: PitchType, aimX: number, aimY: number, accuracy: number, speed: number, isAI: boolean) {
-    const config = PITCH_CONFIGS[pitchType];
+    const config = getEffectivePitchConfig(pitchType);
     const traj = createPitchTrajectory(config, speed, 4);
 
     const maxDeviation = 0.28;
@@ -1228,8 +1242,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
   function showPitchInfo() {
     if (pitchInfoRef.current) {
-      const cfg = PITCH_CONFIGS[pitchInfoRef.current.type];
-      const spdMul = DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty].pitchSpeedMultiplier;
+      const cfg = getEffectivePitchConfig(pitchInfoRef.current.type);
+      const hasProfile = !!aiRef.current?.getProfile();
+      const spdMul = hasProfile ? 1.0 : DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty].pitchSpeedMultiplier;
       const mph = Math.round(cfg.baseSpeed * spdMul * pitchInfoRef.current.speed);
       setPitchInfoDisplay(`${cfg.label}  ${mph} mph`);
       pitchInfoRef.current = null;
@@ -1861,6 +1876,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
   const update = useCallback((dt: number, time: number) => {
     if (!sceneRef.current || !storeRef.current.gameStarted) return;
+    if (introRef?.current) return;
     if (showBattingTutorialRef.current) return;
     if (windowHiddenRef.current) return;
     if (pausedRef.current) return;
@@ -2019,7 +2035,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
     const showTrajectory = !s.isPlayerBatting && s.phase === GamePhase.PrePitch && !!s.selectedPitch;
     if (showTrajectory) {
-      const cfg = PITCH_CONFIGS[s.selectedPitch!];
+      const cfg = getEffectivePitchConfig(s.selectedPitch!);
       const bm = DIFFICULTY_CONFIGS[s.settings.difficulty].breakMultiplier;
       const dc = DIFFICULTY_CONFIGS[s.settings.difficulty];
       const moundRatio = 60.5 / getFieldCfg().moundDistanceFt;
@@ -2103,7 +2119,7 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
     if (storeRef.current.practiceMode) {
       setPitchPracticeStats((p) => ({ ...p, pitches: p.pitches + 1 }));
-      const cfg = PITCH_CONFIGS[s.selectedPitch];
+      const cfg = getEffectivePitchConfig(s.selectedPitch);
       setLastPitchResult({
         type: cfg.label,
         speed: Math.round(value * 100),

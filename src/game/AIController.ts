@@ -10,6 +10,7 @@ import {
   Vec2,
   GamePhase,
   IPlayerController,
+  PitcherProfile,
 } from './types';
 import {
   BATTING_VIEW,
@@ -24,20 +25,28 @@ import { randomRange, distance } from '@/utils/math';
 
 export class AIController implements IPlayerController {
   private cfg: DifficultyConfig;
+  private profile: PitcherProfile | null;
   private throwCooldownUntil = 0;
   private frameCounter = 0;
   private static readonly THROW_COOLDOWN_FRAMES = 40;
   private static readonly NEAR_BASE_RADIUS = 55;
 
-  constructor(difficulty: Difficulty = 'college') {
+  constructor(difficulty: Difficulty = 'college', profile?: PitcherProfile) {
     this.cfg = DIFFICULTY_CONFIGS[difficulty];
+    this.profile = profile ?? null;
   }
 
+  getProfile(): PitcherProfile | null { return this.profile; }
   getDifficultyConfig(): DifficultyConfig { return this.cfg; }
 
   decidePitch(gameState: GameSnapshot): PitchDecision {
-    const types = Object.values(PitchType);
-    const type = types[Math.floor(Math.random() * types.length)];
+    let type: PitchType;
+    if (this.profile) {
+      type = this.weightedPitchSelect();
+    } else {
+      const types = Object.values(PitchType);
+      type = types[Math.floor(Math.random() * types.length)];
+    }
 
     const balls = gameState.count.balls;
     const strikes = gameState.count.strikes;
@@ -306,5 +315,16 @@ export class AIController implements IPlayerController {
     }
 
     return nearestDist > 120;
+  }
+
+  private weightedPitchSelect(): PitchType {
+    const pitches = this.profile!.pitches;
+    const r = Math.random();
+    let cumulative = 0;
+    for (const p of pitches) {
+      cumulative += p.weight;
+      if (r <= cumulative) return p.type;
+    }
+    return pitches[pitches.length - 1].type;
   }
 }

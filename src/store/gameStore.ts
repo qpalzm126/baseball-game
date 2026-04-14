@@ -83,6 +83,7 @@ export interface GameStore {
   practicePower: number | null;
 
   startGame: (settings?: Partial<GameSettings>) => void;
+  startChallenge: (profileId: string) => void;
   startPractice: (settings?: Partial<GameSettings>) => void;
   startPitchingPractice: (settings?: Partial<GameSettings>) => void;
   setPracticePitchType: (type: PitchType | null) => void;
@@ -144,6 +145,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startGame: (settings) => {
     const merged = { ...get().settings, ...settings };
+    set({
+      phase: GamePhase.PrePitch,
+      inning: { number: 1, isTop: true },
+      count: { balls: 0, strikes: 0 },
+      score: { home: 0, away: 0 },
+      outs: 0,
+      runners: [],
+      fielders: createFielders(merged.fieldSize),
+      ball: initialBallState(),
+      settings: merged,
+      selectedPitch: null,
+      speedBarValue: null,
+      targetCell: null,
+      pitchAimPos: null,
+      accuracyValue: null,
+      selectedFielderId: null,
+      isPlayerBatting: true,
+      gameStarted: true,
+      practiceMode: false,
+    });
+  },
+
+  startChallenge: (profileId) => {
+    const merged: GameSettings = {
+      totalInnings: DEFAULT_INNINGS,
+      difficulty: 'mlb',
+      batterSide: 'right',
+      pitcherHand: 'right',
+      fieldSize: 'professional',
+      challengeProfile: profileId,
+    };
     set({
       phase: GamePhase.PrePitch,
       inning: { number: 1, isTop: true },

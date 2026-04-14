@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { GameSettings } from "@/game/types";
 import { DEFAULT_INNINGS } from "@/game/constants";
 import { useGameStore } from "@/store/gameStore";
+import { OHTANI_PROFILE } from "@/game/pitcherProfiles";
 import RulesModal from "./RulesModal";
 import SettingsPanel from "./SettingsPanel";
 
@@ -13,6 +14,7 @@ type MenuView = "main" | "play" | "practice";
 export default function MainMenu() {
   const router = useRouter();
   const startGame = useGameStore((s) => s.startGame);
+  const startChallenge = useGameStore((s) => s.startChallenge);
   const startPractice = useGameStore((s) => s.startPractice);
   const [showRules, setShowRules] = useState(false);
   const [view, setView] = useState<MenuView>("main");
@@ -67,6 +69,17 @@ export default function MainMenu() {
                        transition-all border border-orange-500/30 backdrop-blur-sm"
           >
             Play Online
+          </button>
+
+          <button
+            onClick={() => {
+              startChallenge(OHTANI_PROFILE.id);
+              router.push("/challenge");
+            }}
+            className="w-full py-3 bg-red-600/80 hover:bg-red-500 text-white font-semibold rounded-xl
+                       transition-all border border-red-500/30 backdrop-blur-sm"
+          >
+            ⚾ Challenge: {OHTANI_PROFILE.nameJa}
           </button>
 
           <button
