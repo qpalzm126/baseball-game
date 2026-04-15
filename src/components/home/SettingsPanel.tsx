@@ -102,6 +102,19 @@ export default function SettingsPanel({ settings, onChange }: SettingsPanelProps
         </div>
         <FieldSizeMeter level={FIELD_SIZE_ORDER.indexOf(settings.fieldSize)} total={FIELD_SIZE_ORDER.length} />
       </div>
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-gray-300">Strikeout Image</label>
+        <button
+          onClick={() => onChange({ ...settings, showStrikeoutImage: !settings.showStrikeoutImage })}
+          className={`relative w-11 h-6 rounded-full transition-colors ${
+            settings.showStrikeoutImage ? 'bg-yellow-500' : 'bg-gray-700'
+          }`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+            settings.showStrikeoutImage ? 'translate-x-5' : 'translate-x-0'
+          }`} />
+        </button>
+      </div>
     </div>
   );
 }

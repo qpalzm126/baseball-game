@@ -57,6 +57,7 @@ import { getSocket } from '@/lib/socketClient';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
 import type { AtBatResultPayload, PlayResolvedPayload, ThrowCommandPayload } from '@/server/protocol';
 import type { HitDebugData, PracticeStatsData, PitchPracticeStatsData, LastPitchResultData } from '@/components/game/PracticeOverlays';
+import { DEFAULT_STRIKEOUT_IMAGES } from '@/game/pitcherProfiles';
 
 interface GameUpdateDeps {
   sceneRef: MutableRefObject<ThreeScene | null>;
@@ -96,6 +97,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
 
   const hitCameraHoldRef = useRef(0);
   const hasSwungRef = useRef(false);
+  const swingBallZRef = useRef(Infinity);
+  const swingClosestDistRef = useRef(Infinity);
   const ballLandedTrailRef = useRef(false);
   const deadBallRef = useRef(false);
   const pitchFlightSpeedRef = useRef(2.2);
@@ -108,6 +111,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   const pitchInfoRef = useRef<{ type: PitchType; speed: number } | null>(null);
   const [pitchInfoDisplay, setPitchInfoDisplay] = useState<string | null>(null);
   const pitchInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [strikeoutImage, setStrikeoutImage] = useState<string | null>(null);
+  const strikeoutImageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const chargingRef = useRef(false);
   const chargeStartRef = useRef(0);
@@ -558,6 +563,9 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     if (collision.hit) {
       processPhysicsHit(s, scene, collision.contactT, collision.contactPoint);
       return true;
+    }
+    if (collision.dist < swingClosestDistRef.current) {
+      swingClosestDistRef.current = collision.dist;
     }
     return false;
   }
@@ -1254,23 +1262,61 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     }
   }
 
+  function showStrikeoutSplash() {
+    console.log('[STRIKEOUT] showStrikeoutSplash called, setting:', storeRef.current.settings.showStrikeoutImage);
+    if (!storeRef.current.settings.showStrikeoutImage) return;
+    const profile = aiRef.current?.getProfile();
+    const images = profile?.strikeoutImages?.length
+      ? profile.strikeoutImages
+      : DEFAULT_STRIKEOUT_IMAGES;
+    if (images.length === 0) return;
+    const img = images[Math.floor(Math.random() * images.length)];
+    console.log('[STRIKEOUT] Setting image:', img, 'from', images.length, 'options');
+    setStrikeoutImage(img);
+    if (strikeoutImageTimerRef.current) clearTimeout(strikeoutImageTimerRef.current);
+    strikeoutImageTimerRef.current = setTimeout(() => setStrikeoutImage(null), 1500);
+  }
+
+  function getSwingMissFeedback(): string | null {
+    if (!hasSwungRef.current) return null;
+    if (buntingRef.current) return null;
+
+    const ballZ = swingBallZRef.current;
+    const closestDist = swingClosestDistRef.current;
+
+    // Close miss — timing was decent, position was off
+    if (closestDist < 0.35) return '差一點！位置稍偏 Just missed!';
+
+    // Determine timing based on ball Z when swing started
+    // Ball travels from pitcher (~-6.4) toward catcher (~1.5), plate at z=0
+    // Ideal swing start: ball around z = -1.5 to -0.3 (gives swing time to connect)
+    if (ballZ < -2.5) return '揮棒過快 Too early!';
+    if (ballZ > -0.2) return '揮棒過慢 Too late!';
+
+    return '瞄準位置偏了 Aim was off!';
+  }
+
   function callStrikeOrBall(inZone: boolean) {
     const gs = useGameStore.getState();
-    const willStrikeOut = inZone && gs.count.strikes >= 2;
-    const willWalk = !inZone && gs.count.balls >= 3;
+    const isStrike = inZone || hasSwungRef.current;
+    const willStrikeOut = isStrike && gs.count.strikes >= 2;
+    const willWalk = !inZone && !hasSwungRef.current && gs.count.balls >= 3;
+    const swingFeedback = gs.isPlayerBatting ? getSwingMissFeedback() : null;
 
-    // PvP batter: emit at_bat_result for strike/ball
     if (isMP() && gs.isPlayerBatting) {
-      const isStrike = inZone || hasSwungRef.current;
       getSocket().emit('at_bat_result', {
         type: isStrike ? 'strike' : 'ball',
       });
     }
 
+    console.log('[STRIKEOUT] callStrikeOrBall — strikes:', gs.count.strikes, 'isStrike:', isStrike, 'willStrikeOut:', willStrikeOut, 'practiceMode:', storeRef.current.practiceMode);
+    if (willStrikeOut) showStrikeoutSplash();
+
     if (storeRef.current.practiceMode) {
       const isBattingPractice = gs.isPlayerBatting;
       if (isBattingPractice) {
-        showAnnouncement(inZone ? 'STRIKE!' : 'BALL', 0.8);
+        const base = isStrike ? 'STRIKE!' : 'BALL';
+        showAnnouncement(swingFeedback ? `${base}\n${swingFeedback}` : base, swingFeedback ? 1.5 : 0.8);
         if (hasSwungRef.current) {
           setPracticeStats((p) => ({ ...p, swings: p.swings + 1 }));
         }
@@ -1281,8 +1327,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
         showAnnouncement(label, 0.8);
         setPitchPracticeStats((p) => ({
           ...p,
-          strikes: inZone || hasSwungRef.current ? p.strikes + 1 : p.strikes,
-          balls: !inZone && !hasSwungRef.current ? p.balls + 1 : p.balls,
+          strikes: isStrike ? p.strikes + 1 : p.strikes,
+          balls: !isStrike ? p.balls + 1 : p.balls,
         }));
         setLastPitchResult((prev) => ({
           type: prev?.type ?? '',
@@ -1293,14 +1339,16 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       }
       gs.setPhase(GamePhase.StrikeOrBall);
     } else if (willStrikeOut) {
-      showAnnouncement(`STRIKEOUT!  ${outCountText(gs.outs + 1)}`, 1.5);
+      const base = `STRIKEOUT!  ${outCountText(gs.outs + 1)}`;
+      showAnnouncement(swingFeedback ? `${base}\n${swingFeedback}` : base, 1.5);
       gs.advanceCount('strike');
     } else if (willWalk) {
       showAnnouncement('BALL 4 — WALK', 1.0);
       gs.advanceCount('ball');
     } else {
-      showAnnouncement(inZone ? 'STRIKE!' : 'BALL', 0.8);
-      gs.advanceCount(inZone ? 'strike' : 'ball');
+      const base = inZone || hasSwungRef.current ? 'STRIKE!' : 'BALL';
+      showAnnouncement(swingFeedback ? `${base}\n${swingFeedback}` : base, swingFeedback ? 1.5 : 0.8);
+      gs.advanceCount(inZone || hasSwungRef.current ? 'strike' : 'ball');
     }
   }
 
@@ -1313,6 +1361,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     windupStartedRef.current = false;
     hitCameraHoldRef.current = 0;
     hasSwungRef.current = false;
+    swingBallZRef.current = Infinity;
+    swingClosestDistRef.current = Infinity;
     ballLandedTrailRef.current = false;
     deadBallRef.current = false;
     chargingRef.current = false;
@@ -1930,6 +1980,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
           const swingMul = DIFFICULTY_CONFIGS[storeRef.current.settings.difficulty].swingSpeedMultiplier;
           scene.startSwing(chargePowerRef.current, swingMul);
           hasSwungRef.current = true;
+          swingBallZRef.current = ball3DRef.current.z;
+          swingClosestDistRef.current = Infinity;
           chargingRef.current = false;
           scene.setChargeLevel(0);
           if (isMP()) {
@@ -2158,6 +2210,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     pitchPracticeStats,
     lastPitchResult,
     pitchInfoDisplay,
+    strikeoutImage,
+    strikeoutImageTimerRef,
     handlePitchSelect,
     handleAccuracyLock,
     handleSpeedLock,

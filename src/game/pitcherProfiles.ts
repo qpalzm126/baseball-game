@@ -1,5 +1,15 @@
 import { PitchType, PitcherProfile } from './types';
 
+export const DEFAULT_STRIKEOUT_IMAGES: string[] = [
+  '/images/strikeout/k-1.png',
+  '/images/strikeout/k-2.png',
+  '/images/strikeout/k-3.png',
+  '/images/strikeout/k-4.png',
+  '/images/strikeout/k-5.png',
+  '/images/strikeout/k-6.png',
+  '/images/strikeout/k-7.png',
+];
+
 export const OHTANI_PROFILE: PitcherProfile = {
   id: 'ohtani',
   name: 'Shohei Ohtani',
@@ -8,6 +18,15 @@ export const OHTANI_PROFILE: PitcherProfile = {
   accuracy: 0.88,
   difficulty: 'mlb',
   faceImage: '/images/ohtani-face.png',
+  strikeoutImages: [
+    '/images/strikeout/k-1.png',
+    '/images/strikeout/k-2.png',
+    '/images/strikeout/k-3.png',
+    '/images/strikeout/k-4.png',
+    '/images/strikeout/k-5.png',
+    '/images/strikeout/k-6.png',
+    '/images/strikeout/k-7.png',
+  ],
   pitches: [
     { type: PitchType.FourSeam, baseSpeed: 99, breakX: 1, breakY: -5, weight: 0.40 },
     { type: PitchType.Slider,   baseSpeed: 84, breakX: -14, breakY: 8, weight: 0.25 },

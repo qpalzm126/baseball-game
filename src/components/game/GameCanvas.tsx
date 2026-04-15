@@ -124,8 +124,9 @@ export default function GameCanvas() {
       threeScene.dispose();
       sceneRef.current = null;
       if (game.pitchInfoTimerRef.current) clearTimeout(game.pitchInfoTimerRef.current);
+      if (game.strikeoutImageTimerRef.current) clearTimeout(game.strikeoutImageTimerRef.current);
     };
-  }, [game.update, game.render, game.pitchInfoTimerRef]);
+  }, [game.update, game.render, game.pitchInfoTimerRef, game.strikeoutImageTimerRef]);
 
   /* =========== DERIVED STATE =========== */
 
@@ -252,6 +253,31 @@ export default function GameCanvas() {
         {paused && <PauseMenu onResume={resumeGame} onQuit={quitGame} onRestart={restartGame} settings={store.settings} />}
 
         {showBattingTutorial && <BattingTutorial onDismiss={dismissTutorial} />}
+
+        {game.strikeoutImage && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none bg-black/60 animate-fade-in">
+            <div className="relative flex flex-col items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={game.strikeoutImage}
+                alt="Strikeout"
+                className="max-w-[65%] max-h-[55%] object-contain drop-shadow-[0_0_40px_rgba(255,50,50,0.6)]"
+              />
+              <div className="mt-3">
+                <span
+                  className="text-5xl font-black tracking-[0.15em] uppercase"
+                  style={{
+                    color: '#ff3333',
+                    textShadow: '0 0 20px rgba(255,50,50,0.8), 0 0 60px rgba(255,50,50,0.4), 0 2px 4px rgba(0,0,0,0.8)',
+                    WebkitTextStroke: '1.5px rgba(0,0,0,0.5)',
+                  }}
+                >
+                  STRIKE OUT
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {introActive && (() => {
           const prof = getPitcherProfile(store.settings.challengeProfile ?? '');

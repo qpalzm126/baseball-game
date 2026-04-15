@@ -126,7 +126,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   runners: [],
   fielders: createFielders(),
   ball: initialBallState(),
-  settings: { totalInnings: DEFAULT_INNINGS, difficulty: 'college', batterSide: 'right', pitcherHand: 'right', fieldSize: 'professional' },
+  settings: { totalInnings: DEFAULT_INNINGS, difficulty: 'college', batterSide: 'right', pitcherHand: 'right', fieldSize: 'professional', showStrikeoutImage: true },
   selectedPitch: null,
   speedBarValue: null,
   targetCell: null,
@@ -144,7 +144,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   practicePower: null,
 
   startGame: (settings) => {
-    const merged = { ...get().settings, ...settings };
+    const merged = { ...get().settings, ...settings, challengeProfile: undefined };
     set({
       phase: GamePhase.PrePitch,
       inning: { number: 1, isTop: true },
@@ -174,6 +174,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       batterSide: 'right',
       pitcherHand: 'right',
       fieldSize: 'professional',
+      showStrikeoutImage: true,
       challengeProfile: profileId,
     };
     set({
@@ -199,7 +200,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   startPractice: (settings) => {
-    const merged = { ...get().settings, ...settings };
+    const merged = { ...get().settings, ...settings, challengeProfile: undefined };
     set({
       phase: GamePhase.PrePitch,
       inning: { number: 1, isTop: true },
@@ -223,7 +224,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   startPitchingPractice: (settings) => {
-    const merged = { ...get().settings, ...settings };
+    const merged = { ...get().settings, ...settings, challengeProfile: undefined };
     set({
       phase: GamePhase.PrePitch,
       inning: { number: 1, isTop: true },

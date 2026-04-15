@@ -1788,17 +1788,17 @@ export class ThreeScene {
     return null;
   }
 
-  checkBatBallCollision3D(ballPos: THREE.Vector3, collisionScale: number = 1.8): { hit: boolean; contactT: number; contactPoint: THREE.Vector3 } {
+  checkBatBallCollision3D(ballPos: THREE.Vector3, collisionScale: number = 1.8): { hit: boolean; contactT: number; contactPoint: THREE.Vector3; dist: number } {
     const { handle, tip } = this.getBatWorldEndpoints();
     const ab = tip.clone().sub(handle);
     const ac = ballPos.clone().sub(handle);
     const abLenSq = ab.lengthSq();
-    if (abLenSq < 0.0001) return { hit: false, contactT: 0, contactPoint: handle };
+    if (abLenSq < 0.0001) return { hit: false, contactT: 0, contactPoint: handle, dist: ballPos.distanceTo(handle) };
     const t = Math.max(0, Math.min(1, ac.dot(ab) / abLenSq));
     const closest = handle.clone().add(ab.clone().multiplyScalar(t));
     const dist = ballPos.distanceTo(closest);
     const collisionR = BALL_RADIUS + lerp(BAT_HANDLE_R, BAT_BARREL_R, t);
-    return { hit: dist <= collisionR * collisionScale, contactT: t, contactPoint: closest };
+    return { hit: dist <= collisionR * collisionScale, contactT: t, contactPoint: closest, dist };
   }
 
   getSwingContactQuality(contactT: number): number {

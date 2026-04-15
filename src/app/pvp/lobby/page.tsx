@@ -27,6 +27,7 @@ export default function PvPLobbyPage() {
     batterSide: 'right',
     pitcherHand: 'right',
     fieldSize: 'professional',
+    showStrikeoutImage: true,
   });
 
   useEffect(() => {

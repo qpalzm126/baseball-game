@@ -240,6 +240,7 @@ export interface GameSettings {
   batterSide: BatterSide;
   pitcherHand: PitcherHand;
   fieldSize: FieldSize;
+  showStrikeoutImage: boolean;
   challengeProfile?: string;
 }
 
@@ -260,4 +261,5 @@ export interface PitcherProfile {
   accuracy: number;
   difficulty: Difficulty;
   faceImage?: string;
+  strikeoutImages?: string[];
 }

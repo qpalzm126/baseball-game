@@ -112,13 +112,19 @@ export default function GameHUD({
         </div>
       )}
 
-      {announcement && (
-        <div className="absolute inset-x-0 bottom-16 z-20 flex justify-center pointer-events-none">
-          <div className="bg-black/70 backdrop-blur-sm px-8 py-3 rounded-xl">
-            <span className="text-yellow-400 font-bold text-2xl">{announcement}</span>
+      {announcement && (() => {
+        const lines = announcement.split('\n');
+        return (
+          <div className="absolute inset-x-0 bottom-16 z-20 flex justify-center pointer-events-none">
+            <div className="bg-black/70 backdrop-blur-sm px-8 py-3 rounded-xl text-center">
+              <span className="text-yellow-400 font-bold text-2xl">{lines[0]}</span>
+              {lines[1] && (
+                <div className="text-cyan-300 text-sm font-medium mt-1">{lines[1]}</div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <KeyHints phase={phase} isPlayerBatting={isPlayerBatting} isPractice={isPractice} deadBall={deadBall} />
     </>

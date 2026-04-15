@@ -24,6 +24,7 @@ export default function MainMenu() {
     batterSide: "right",
     pitcherHand: "right",
     fieldSize: "professional",
+    showStrikeoutImage: true,
   });
 
   const handleStartGame = () => {
