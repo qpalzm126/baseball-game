@@ -57,7 +57,14 @@ import { getSocket } from '@/lib/socketClient';
 import { useMultiplayerStore } from '@/store/multiplayerStore';
 import type { AtBatResultPayload, PlayResolvedPayload, ThrowCommandPayload } from '@/server/protocol';
 import type { HitDebugData, PracticeStatsData, PitchPracticeStatsData, LastPitchResultData } from '@/components/game/PracticeOverlays';
-import { DEFAULT_STRIKEOUT_IMAGES } from '@/game/pitcherProfiles';
+import { DEFAULT_STRIKEOUT_IMAGES, DEFAULT_STRIKE_IMAGES, DEFAULT_BALL_IMAGES } from '@/game/pitcherProfiles';
+
+export interface SplashData {
+  src: string | null;
+  text: string;
+  textColor: string;
+  bgOpacity: string;
+}
 
 interface GameUpdateDeps {
   sceneRef: MutableRefObject<ThreeScene | null>;
@@ -111,8 +118,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   const pitchInfoRef = useRef<{ type: PitchType; speed: number } | null>(null);
   const [pitchInfoDisplay, setPitchInfoDisplay] = useState<string | null>(null);
   const pitchInfoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [strikeoutImage, setStrikeoutImage] = useState<string | null>(null);
-  const strikeoutImageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [splashData, setSplashData] = useState<SplashData | null>(null);
+  const splashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const chargingRef = useRef(false);
   const chargeStartRef = useRef(0);
@@ -1262,17 +1269,40 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     }
   }
 
-  function showStrikeoutSplash() {
+  function showSplash(type: 'strike' | 'ball' | 'strikeout') {
     if (!storeRef.current.settings.showStrikeoutImage) return;
     const profile = aiRef.current?.getProfile();
-    const images = profile?.strikeoutImages?.length
-      ? profile.strikeoutImages
-      : DEFAULT_STRIKEOUT_IMAGES;
-    if (images.length === 0) return;
-    const img = images[Math.floor(Math.random() * images.length)];
-    setStrikeoutImage(img);
-    if (strikeoutImageTimerRef.current) clearTimeout(strikeoutImageTimerRef.current);
-    strikeoutImageTimerRef.current = setTimeout(() => setStrikeoutImage(null), 1500);
+
+    let images: string[];
+    let text: string;
+    let textColor: string;
+    let bgOpacity: string;
+    let duration: number;
+
+    if (type === 'strikeout') {
+      images = profile?.strikeoutImages?.length ? profile.strikeoutImages : DEFAULT_STRIKEOUT_IMAGES;
+      text = 'STRIKE OUT';
+      textColor = '#ff3333';
+      bgOpacity = 'bg-black/60';
+      duration = 1500;
+    } else if (type === 'strike') {
+      images = DEFAULT_STRIKE_IMAGES;
+      text = 'STRIKE!';
+      textColor = '#ff8800';
+      bgOpacity = 'bg-black/30';
+      duration = 800;
+    } else {
+      images = DEFAULT_BALL_IMAGES;
+      text = 'BALL';
+      textColor = '#33aaff';
+      bgOpacity = 'bg-black/30';
+      duration = 800;
+    }
+
+    const src = images.length > 0 ? images[Math.floor(Math.random() * images.length)] : null;
+    setSplashData({ src, text, textColor, bgOpacity });
+    if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
+    splashTimerRef.current = setTimeout(() => setSplashData(null), duration);
   }
 
   function getSwingMissFeedback(): string | null {
@@ -1307,7 +1337,11 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       });
     }
 
-    if (willStrikeOut) showStrikeoutSplash();
+    if (willStrikeOut) {
+      showSplash('strikeout');
+    } else {
+      showSplash(isStrike ? 'strike' : 'ball');
+    }
 
     if (storeRef.current.practiceMode) {
       const isBattingPractice = gs.isPlayerBatting;
@@ -2207,8 +2241,8 @@ export function useGameUpdate(deps: GameUpdateDeps) {
     pitchPracticeStats,
     lastPitchResult,
     pitchInfoDisplay,
-    strikeoutImage,
-    strikeoutImageTimerRef,
+    splashData,
+    splashTimerRef,
     handlePitchSelect,
     handleAccuracyLock,
     handleSpeedLock,

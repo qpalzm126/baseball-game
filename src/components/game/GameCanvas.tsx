@@ -9,7 +9,7 @@ import { ThreeScene } from '@/engine/ThreeScene';
 import { AIController } from '@/game/AIController';
 import { GamePhase, PitchType } from '@/game/types';
 import { PITCH_CONFIGS, DIFFICULTY_CONFIGS, FIELD_SIZE_CONFIGS } from '@/game/constants';
-import { getPitcherProfile, DEFAULT_STRIKEOUT_IMAGES } from '@/game/pitcherProfiles';
+import { getPitcherProfile, DEFAULT_STRIKEOUT_IMAGES, DEFAULT_STRIKE_IMAGES, DEFAULT_BALL_IMAGES } from '@/game/pitcherProfiles';
 
 import { usePauseControl } from '@/hooks/usePauseControl';
 import { useBattingTutorial } from '@/hooks/useBattingTutorial';
@@ -85,7 +85,7 @@ export default function GameCanvas() {
     sceneRef.current?.setFieldSize(cfg.wallRadiusGU, cfg.wallHeightGU, cfg.moundDistanceFt);
   }, [store.settings.fieldSize]);
 
-  /* =========== PRELOAD STRIKEOUT IMAGES =========== */
+  /* =========== PRELOAD SPLASH IMAGES =========== */
 
   useEffect(() => {
     const profile = storeRef.current.settings.challengeProfile
@@ -93,6 +93,8 @@ export default function GameCanvas() {
       : undefined;
     const imgs = new Set([
       ...DEFAULT_STRIKEOUT_IMAGES,
+      ...DEFAULT_STRIKE_IMAGES,
+      ...DEFAULT_BALL_IMAGES,
       ...(profile?.strikeoutImages ?? []),
     ]);
     imgs.forEach((src) => {
@@ -140,9 +142,9 @@ export default function GameCanvas() {
       threeScene.dispose();
       sceneRef.current = null;
       if (game.pitchInfoTimerRef.current) clearTimeout(game.pitchInfoTimerRef.current);
-      if (game.strikeoutImageTimerRef.current) clearTimeout(game.strikeoutImageTimerRef.current);
+      if (game.splashTimerRef.current) clearTimeout(game.splashTimerRef.current);
     };
-  }, [game.update, game.render, game.pitchInfoTimerRef, game.strikeoutImageTimerRef]);
+  }, [game.update, game.render, game.pitchInfoTimerRef, game.splashTimerRef]);
 
   /* =========== DERIVED STATE =========== */
 
@@ -270,25 +272,27 @@ export default function GameCanvas() {
 
         {showBattingTutorial && <BattingTutorial onDismiss={dismissTutorial} />}
 
-        {game.strikeoutImage && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none bg-black/60 animate-fade-in">
+        {game.splashData && (
+          <div className={`absolute inset-0 z-50 flex items-center justify-center pointer-events-none ${game.splashData.bgOpacity} animate-fade-in`}>
             <div className="relative flex flex-col items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={game.strikeoutImage}
-                alt="Strikeout"
-                className="max-w-[65%] max-h-[55%] object-contain drop-shadow-[0_0_40px_rgba(255,50,50,0.6)]"
-              />
-              <div className="mt-3">
+              {game.splashData.src && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.splashData.src}
+                  alt={game.splashData.text}
+                  className="max-w-[65%] max-h-[55%] object-contain drop-shadow-[0_0_40px_rgba(255,50,50,0.6)]"
+                />
+              )}
+              <div className={game.splashData.src ? 'mt-3' : ''}>
                 <span
                   className="text-5xl font-black tracking-[0.15em] uppercase"
                   style={{
-                    color: '#ff3333',
-                    textShadow: '0 0 20px rgba(255,50,50,0.8), 0 0 60px rgba(255,50,50,0.4), 0 2px 4px rgba(0,0,0,0.8)',
+                    color: game.splashData.textColor,
+                    textShadow: `0 0 20px ${game.splashData.textColor}cc, 0 0 60px ${game.splashData.textColor}66, 0 2px 4px rgba(0,0,0,0.8)`,
                     WebkitTextStroke: '1.5px rgba(0,0,0,0.5)',
                   }}
                 >
-                  STRIKE OUT
+                  {game.splashData.text}
                 </span>
               </div>
             </div>

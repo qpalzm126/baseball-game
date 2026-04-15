@@ -10,6 +10,18 @@ export const DEFAULT_STRIKEOUT_IMAGES: string[] = [
   '/images/strikeout/k-7.png',
 ];
 
+export const DEFAULT_STRIKE_IMAGES: string[] = [
+  '/images/strike/s-1.png',
+  '/images/strike/s-2.png',
+  '/images/strike/s-3.png',
+];
+
+export const DEFAULT_BALL_IMAGES: string[] = [
+  '/images/ball/b-1.png',
+  '/images/ball/b-2.png',
+  '/images/ball/b-3.png',
+];
+
 export const OHTANI_PROFILE: PitcherProfile = {
   id: 'ohtani',
   name: 'Shohei Ohtani',
