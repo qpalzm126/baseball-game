@@ -9,7 +9,7 @@ import { ThreeScene } from '@/engine/ThreeScene';
 import { AIController } from '@/game/AIController';
 import { GamePhase, PitchType } from '@/game/types';
 import { PITCH_CONFIGS, DIFFICULTY_CONFIGS, FIELD_SIZE_CONFIGS } from '@/game/constants';
-import { getPitcherProfile } from '@/game/pitcherProfiles';
+import { getPitcherProfile, DEFAULT_STRIKEOUT_IMAGES } from '@/game/pitcherProfiles';
 
 import { usePauseControl } from '@/hooks/usePauseControl';
 import { useBattingTutorial } from '@/hooks/useBattingTutorial';
@@ -84,6 +84,22 @@ export default function GameCanvas() {
     const cfg = FIELD_SIZE_CONFIGS[store.settings.fieldSize];
     sceneRef.current?.setFieldSize(cfg.wallRadiusGU, cfg.wallHeightGU, cfg.moundDistanceFt);
   }, [store.settings.fieldSize]);
+
+  /* =========== PRELOAD STRIKEOUT IMAGES =========== */
+
+  useEffect(() => {
+    const profile = storeRef.current.settings.challengeProfile
+      ? getPitcherProfile(storeRef.current.settings.challengeProfile)
+      : undefined;
+    const imgs = new Set([
+      ...DEFAULT_STRIKEOUT_IMAGES,
+      ...(profile?.strikeoutImages ?? []),
+    ]);
+    imgs.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, []);
 
   /* =========== LIFECYCLE =========== */
 

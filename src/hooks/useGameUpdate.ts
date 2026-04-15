@@ -1263,7 +1263,6 @@ export function useGameUpdate(deps: GameUpdateDeps) {
   }
 
   function showStrikeoutSplash() {
-    console.log('[STRIKEOUT] showStrikeoutSplash called, setting:', storeRef.current.settings.showStrikeoutImage);
     if (!storeRef.current.settings.showStrikeoutImage) return;
     const profile = aiRef.current?.getProfile();
     const images = profile?.strikeoutImages?.length
@@ -1271,7 +1270,6 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       : DEFAULT_STRIKEOUT_IMAGES;
     if (images.length === 0) return;
     const img = images[Math.floor(Math.random() * images.length)];
-    console.log('[STRIKEOUT] Setting image:', img, 'from', images.length, 'options');
     setStrikeoutImage(img);
     if (strikeoutImageTimerRef.current) clearTimeout(strikeoutImageTimerRef.current);
     strikeoutImageTimerRef.current = setTimeout(() => setStrikeoutImage(null), 1500);
@@ -1309,7 +1307,6 @@ export function useGameUpdate(deps: GameUpdateDeps) {
       });
     }
 
-    console.log('[STRIKEOUT] callStrikeOrBall — strikes:', gs.count.strikes, 'isStrike:', isStrike, 'willStrikeOut:', willStrikeOut, 'practiceMode:', storeRef.current.practiceMode);
     if (willStrikeOut) showStrikeoutSplash();
 
     if (storeRef.current.practiceMode) {
